@@ -1,0 +1,380 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String                @id @default(uuid())
+  email               String                @unique
+  username            String?
+  phone               String                @default("No Phone Number")   
+  verified            Boolean               @default(false)   
+  passwordHash        String?
+  emailVerified       DateTime?
+  createdAt           DateTime              @default(now())
+  roles               UserRole[]
+  publisherId         String?               @unique
+  googleId            String?               @unique
+  avatar              String?
+  authProvider        AuthProvider          @default(EMAIL)
+  referralBonus       Float                 @default(0)
+  referralCode        String?               
+  referredBy          String?
+  phoneOtpHash          String?
+  phoneOtpExpiresAt     DateTime?
+  admin               Admin?
+  adminAction         AdminAction[]
+  campaigns           Campaign[]
+  reservations        CampaignReservation[]
+  publisher           Publisher?
+  transactions        Transaction[]
+  blogComments        BlogComment[]
+  blogs               Blog[]
+  notifications       Notification[]
+  passwordResetTokens PasswordResetToken?
+  referralUse         ReferralUse[]
+}
+
+enum UserRole {
+  USER
+  PUBLISHER
+  ADVERTISER
+  ADMIN
+  MODERATOR
+}
+
+model Publisher {
+  id              String             @id @default(uuid())
+  userId          String             @unique
+  verified        Boolean            @default(false)
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account         PublisherAccount?
+  earningsHistory PublisherEarning[]
+  strikes         PublisherStrike[]
+  withdrawals     Withdrawal[]
+  referral        Referral[]
+  age             Int?
+  gender          String?
+  location        String?
+  occupation      String?
+  profileComplete Boolean    @default(false)
+}
+
+// In your schema.prisma - UPDATE CampaignReservation model
+model CampaignReservation {
+  id              String   @id @default(uuid())
+  reservationId   String   @unique
+  title           String
+  description     String?
+  targetViews     Int
+  category        String?
+  platform        String
+  adCreative      Json
+  amountPaid      Float
+  userId          String
+  status          String   @default("PENDING")
+  paymentReference String?  // ADD THIS FIELD
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@index([reservationId])
+  @@index([userId])
+  @@index([paymentReference]) // Add index for payment reference lookups
+}
+model PublisherStrike {
+  id          String    @id @default(uuid())
+  publisherId String
+  reason      String
+  severity    String    @default("WARNING")
+  evidence    Json?
+  issuedAt    DateTime  @default(now())
+  resolvedAt  DateTime?
+  publisher   Publisher @relation(fields: [publisherId], references: [id])
+}
+
+model PublisherAccount {
+  id               String    @id @default(uuid())
+  publisherId      String    @unique
+  bankName         String?
+  bankCode         String?
+  accountNumber    String?
+  accountName      String?
+  isVerified       Boolean   @default(true)
+  totalEarnings    Float     @default(0)
+  availableBalance Float     @default(0)
+  pendingBalance   Float     @default(0)
+  paystackRecipientCode String? @map("paystack_recipient_code")
+  publisher        Publisher @relation(fields: [publisherId], references: [id],onDelete: Cascade)
+}
+
+model Campaign {
+  id               String             @id @default(uuid())
+  title            String
+  description      String?
+  userId           String
+  adCreativeId     String?
+  category         String?
+  targetViews      Int
+  platform         String
+  status           Status             @default(PENDING)
+  views            Int                @default(0)
+  createdAt        DateTime           @default(now())
+  completedAt      DateTime?
+  amountPaid       Float
+  paymentStatus    String             @default("PENDING")
+  paymentReference String?
+  paidAt           DateTime?
+  reservationId    String? 
+  adCreative       AdCreative?        @relation(fields: [adCreativeId], references: [id])
+  user             User               @relation(fields: [userId], references: [id])
+  earnings         PublisherEarning[]
+  transactions     Transaction[]
+}
+
+model Admin {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  permissions Json?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model PublisherEarning {
+  id                String    @id @default(uuid())
+  publisherId       String
+  userId            String?
+  campaignId        String
+  amount            Float
+  views             Int
+  status            String    @default("PENDING")
+  proofImages       String[]
+  proofUrls         String[]
+  extractedViews    Int?
+  proofCode         String?   @unique
+  stampedCreativeUrl String?
+  ocrText           String?
+  ocrConfidence     Float?
+  codeMatched       Boolean   @default(false)
+  claimedAt         DateTime  @default(now())
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  paymentReference  String?
+  rejectionReason   String?
+  campaign          Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  publisher         Publisher @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+
+  @@unique([publisherId, campaignId])
+}
+
+model AdminAction {
+  id          String   @id @default(uuid())
+  adminId     String
+  actionType  String
+  targetId    String
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  admin       User     @relation(fields: [adminId], references: [id])
+}
+
+// Add enum for clearer states
+enum WithdrawalStatus {
+  REQUESTED    // just created, not reserved yet
+  PROCESSING   // reserved and enqueued to payout worker
+  SENT         // transfer initiated (transfer code returned)
+  PAID         // confirmed paid
+  FAILED       // failed and refunded
+  REVERSED     // reversed by provider
+  CANCELLED    // cancelled by admin
+}
+
+// Update Withdrawal model
+model Withdrawal {
+  id               String           @id @default(uuid())
+  publisherId      String
+  amount           Float
+  status           WithdrawalStatus @default(REQUESTED)
+  reference        String           @unique
+  idempotencyKey   String?          @unique
+  paymentReference String?          // provider transfer id / code
+  provider         String?          // e.g., "PAYSTACK"
+  providerStatus   String?          // provider-specific status
+  createdAt        DateTime         @default(now())
+  processedAt      DateTime?
+  completedAt      DateTime?
+  refundedAt       DateTime?
+  note             String?
+  publisher        Publisher        @relation(fields: [publisherId], references: [id])
+
+  @@index([publisherId])
+  @@index([status])
+}
+
+// Transaction: track provider info
+model Transaction {
+  id               String   @id @default(uuid())
+  userId           String
+  campaignId       String?
+  amount           Float
+  type             String
+  status           String
+  reference        String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  provider         String?  // e.g., PAYSTACK
+  providerRef      String?
+  providerStatus   String?
+
+  campaign         Campaign? @relation(fields: [campaignId], references: [id])
+  user             User      @relation(fields: [userId], references: [id])
+}
+
+
+model AdCreative {
+  id        String     @id @default(uuid())
+  fileUrl   String
+  text      String?
+  approved  Boolean    @default(false)
+  campaigns Campaign[]
+}
+
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model Blog {
+  id          String        @id @default(uuid())
+  title       String
+  slug        String        @unique
+  content     String
+  excerpt     String?
+  coverImage  String?
+  published   Boolean       @default(false)
+  publishedAt DateTime?
+  authorId    String
+  category    String?
+  tags        String[]
+  views       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  comments    BlogComment[]
+  author      User          @relation(fields: [authorId], references: [id])
+
+  @@map("blogs")
+}
+
+model BlogComment {
+  id        String        @id @default(uuid())
+  content   String
+  authorId  String
+  blogId    String
+  parentId  String?
+  approved  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  author    User          @relation(fields: [authorId], references: [id])
+  blog      Blog          @relation(fields: [blogId], references: [id])
+  parent    BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   BlogComment[] @relation("CommentReplies")
+
+  @@map("blog_comments")
+}
+
+model PendingRegistration {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  username     String
+  password     String
+  phone     String      @default("0")
+  role         String
+  token        String   @unique
+  referralCode String?   
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@map("pending_registrations")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  actionUrl String?
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  expiresAt DateTime?
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Referral {
+  id            String        @id @default(uuid())
+  code          String        @unique
+  publisherId   String
+  totalUses     Int           @default(0)
+  totalEarnings Float         @default(0)
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  referrals     ReferralUse[]
+  publisher     Publisher     @relation(fields: [publisherId], references: [id],onDelete: Cascade)
+
+  @@map("referrals")
+}
+
+model ReferralUse {
+  id              String   @id @default(uuid())
+  referralId      String
+  referredUserId  String
+  publisherEarned Float    @default(0)
+  userBonus       Float    @default(0)
+  status          String   @default("COMPLETED")
+  createdAt       DateTime @default(now())
+  referral        Referral @relation(fields: [referralId], references: [id])
+  referredUser    User     @relation(fields: [referredUserId], references: [id],onDelete: Cascade)
+
+  @@unique([referralId, referredUserId])
+  @@map("referral_uses")
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+}
+
+
+
+enum Status {
+  PENDING
+  ACTIVE
+  COMPLETED
+  PAUSED
+}
+
+enum NotificationType {
+  WELCOME
+  CAMPAIGN_CREATED
+  CAMPAIGN_ACCEPTED
+  PROOF_REMINDER
+  PROOF_SUBMITTED
+  EARNINGS_APPROVED
+  WITHDRAWAL_ELIGIBLE
+  PAYMENT_SENT
+  SYSTEM_ALERT
+}
