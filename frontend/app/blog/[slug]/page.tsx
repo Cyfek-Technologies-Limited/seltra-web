@@ -140,6 +140,7 @@ export default async function BlogPage({
 
 // Keep generateStaticParams for static generation
 export async function generateStaticParams() {
-  // Return an empty array or fetch slugs from your API
-  return [{ slug: "test-blog-1" }, { slug: "test-blog-2" }];
+  // Placeholder slugs were prerendered at build time and failed the build when
+  // the API was unreachable; posts now render on first request instead.
+  return [];
 }
