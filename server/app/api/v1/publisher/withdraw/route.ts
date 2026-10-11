@@ -9,8 +9,9 @@ import { prisma } from "../../../../../lib/db.cjs";
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY!;
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
+// Warn instead of throwing so `next build` can collect page data without secrets present.
 if (!PAYSTACK_SECRET_KEY) {
-  throw new Error("PAYSTACK_SECRET_KEY is not set in environment variables");
+  console.warn("PAYSTACK_SECRET_KEY is not set in environment variables");
 }
 
 // Helper to get bank code from bank name
