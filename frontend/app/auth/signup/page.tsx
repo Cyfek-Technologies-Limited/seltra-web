@@ -23,9 +23,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [formData, setFormData] = useState({
-    username: "",
     email: "",
-    phone: "",
     password: "",
     referralCode: "",
   });
@@ -61,16 +59,11 @@ export default function Register() {
       return;
     }
 
-    sessionStorage.setItem(
-      "pending_registration",
-      JSON.stringify({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-      })
-    );
-
-    await signUp(formData);
+    await signUp({
+      email: formData.email.trim(),
+      password: formData.password,
+      ...(formData.referralCode ? { referralCode: formData.referralCode } : {}),
+    } as AuthFormData);
   };
 
   return (
@@ -96,34 +89,14 @@ export default function Register() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                placeholder="Enter your name"
-                value={formData.username}
-                onChange={(e) => handleInputChange("username", e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="Enter your email"
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="Enter your phone number (must be a whatsapp line)"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
                 required
               />
             </div>
@@ -133,6 +106,7 @@ export default function Register() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   placeholder="Create password"
                   value={formData.password}
                   onChange={(e) =>

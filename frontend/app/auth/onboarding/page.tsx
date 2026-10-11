@@ -20,9 +20,11 @@ import { Label } from "@/components/ui/label";
 import {
   AudienceStep,
   BusinessStep,
+  DetailsStep,
+  GoalsStep,
   OnboardingRole,
   RoleStep,
-  UsernameStep,
+  isValidPhone,
 } from "@/components/onboarding/GoogleOnboardingSteps";
 
 interface OnboardingData {
@@ -35,22 +37,27 @@ interface OnboardingData {
 interface GoogleSignupData {
   role: OnboardingRole | null;
   agreeToTerms: boolean;
-  username: string;
+  fullName: string;
+  phone: string;
   companyName: string;
   industry: string;
   targetAudience: string[];
   audienceNotes: string;
+  campaignGoal: string;
+  monthlyBudget: string;
+  targetLocations: string;
 }
 
 type StepKey =
   | "welcome"
   | "role"
-  | "username"
+  | "details"
   | "personal"
   | "location"
   | "occupation"
   | "business"
-  | "audience";
+  | "audience"
+  | "goals";
 
 const genderOptions = [
   { id: "female", label: "Female", emoji: "👩" },
@@ -102,12 +109,13 @@ const stepContent: Record<
     sideText:
       "Publishers earn by sharing ads on their social media. Advertisers get their business seen by thousands.",
   },
-  username: {
-    title: "Pick a username",
-    description: "Choose the name you want to use on Seltra.",
+  details: {
+    title: "Your contact details",
+    description: "Tell us your name and the WhatsApp number we can reach you on.",
     sideEmoji: "🪪",
-    sideTitle: "Make it yours",
-    sideText: "Your username is how you will be identified across Seltra.",
+    sideTitle: "Stay in the loop",
+    sideText:
+      "We use your WhatsApp line for payouts, campaign updates, and important account notices.",
   },
   personal: {
     title: "Tell us about yourself",
@@ -151,10 +159,18 @@ const stepContent: Record<
     sideText:
       "Your audience helps us put your campaigns in front of people most likely to care.",
   },
+  goals: {
+    title: "What are you hoping to achieve?",
+    description: "A few quick questions so we can plan the right campaigns for you.",
+    sideEmoji: "🚀",
+    sideTitle: "Campaigns that fit",
+    sideText:
+      "Your goals and budget help us recommend campaign sizes and publishers that deliver results.",
+  },
 };
 
-const PUBLISHER_STEPS: StepKey[] = ["personal", "location", "occupation"];
-const ADVERTISER_STEPS: StepKey[] = ["business", "audience"];
+const PUBLISHER_STEPS: StepKey[] = ["details", "personal", "location", "occupation"];
+const ADVERTISER_STEPS: StepKey[] = ["details", "business", "audience", "goals"];
 
 const stepMotion = {
   initial: { opacity: 0, x: 20 },
@@ -182,16 +198,21 @@ const Onboarding = () => {
   const [googleData, setGoogleData] = useState<GoogleSignupData>({
     role: null,
     agreeToTerms: false,
-    username: "",
+    fullName: "",
+    phone: "",
     companyName: "",
     industry: "",
     targetAudience: [],
     audienceNotes: "",
+    campaignGoal: "",
+    monthlyBudget: "",
+    targetLocations: "",
   });
 
   const steps = useMemo<StepKey[]>(() => {
+    // Existing publishers without a flow param only fill in their profile.
     if (!needsRoleSelection) {
-      return ["welcome", ...PUBLISHER_STEPS];
+      return ["welcome", "personal", "location", "occupation"];
     }
     const roleSteps =
       googleData.role === "advertiser"
@@ -199,18 +220,12 @@ const Onboarding = () => {
         : googleData.role === "publisher"
         ? PUBLISHER_STEPS
         : [];
-    // Email users already chose a name at sign-up, so only Google users pick a username here.
-    return isGoogleFlow
-      ? ["role", "username", ...roleSteps]
-      : ["role", ...roleSteps];
-  }, [needsRoleSelection, isGoogleFlow, googleData.role]);
+    return ["role", ...roleSteps];
+  }, [needsRoleSelection, googleData.role]);
 
   const totalSteps = steps.length;
   const currentStep = steps[stepIndex] ?? steps[0];
-  const isLastStep =
-    stepIndex === totalSteps - 1 &&
-    currentStep !== "username" &&
-    currentStep !== "role";
+  const isLastStep = stepIndex === totalSteps - 1 && currentStep !== "role";
 
   const ageError = useMemo(() => {
     if (!data.age) return "";
@@ -227,8 +242,11 @@ const Onboarding = () => {
         return true;
       case "role":
         return googleData.role !== null && googleData.agreeToTerms;
-      case "username":
-        return googleData.username.trim().length >= 2;
+      case "details":
+        return (
+          googleData.fullName.trim().length >= 2 &&
+          isValidPhone(googleData.phone)
+        );
       case "personal":
         return data.age.trim() !== "" && !ageError && data.gender !== "";
       case "location":
@@ -242,6 +260,8 @@ const Onboarding = () => {
         );
       case "audience":
         return googleData.targetAudience.length > 0;
+      case "goals":
+        return googleData.campaignGoal !== "" && googleData.monthlyBudget !== "";
       default:
         return false;
     }
@@ -250,10 +270,10 @@ const Onboarding = () => {
   const handleNext = () => {
     if (!canProceed() || isLastStep) return;
 
-    if (currentStep === "role" && !googleData.username) {
+    if (currentStep === "role" && !googleData.fullName) {
       const suggested = sessionStorage.getItem("google_onboarding_username");
       if (suggested) {
-        setGoogleData((prev) => ({ ...prev, username: suggested }));
+        setGoogleData((prev) => ({ ...prev, fullName: suggested }));
       }
     }
     setStepIndex((prev) => prev + 1);
@@ -337,7 +357,8 @@ const Onboarding = () => {
           body: JSON.stringify({
             role: googleData.role,
             acceptedTerms: googleData.agreeToTerms,
-            ...(isGoogleFlow ? { username: googleData.username.trim() } : {}),
+            username: googleData.fullName.trim(),
+            phone: googleData.phone.trim(),
             ...(referralCode ? { referralCode } : {}),
           }),
         }
@@ -370,6 +391,9 @@ const Onboarding = () => {
               industry: googleData.industry.trim(),
               targetAudience: googleData.targetAudience,
               audienceNotes: googleData.audienceNotes.trim(),
+              campaignGoal: googleData.campaignGoal,
+              monthlyBudget: googleData.monthlyBudget,
+              targetLocations: googleData.targetLocations.trim(),
             }),
           }
         );
@@ -415,12 +439,13 @@ const Onboarding = () => {
           />
         );
 
-      case "username":
+      case "details":
         return (
-          <UsernameStep
-            username={googleData.username}
-            onUsernameChange={(username) =>
-              setGoogleData((prev) => ({ ...prev, username }))
+          <DetailsStep
+            fullName={googleData.fullName}
+            phone={googleData.phone}
+            onChange={(field, value) =>
+              setGoogleData((prev) => ({ ...prev, [field]: value }))
             }
           />
         );
@@ -596,6 +621,18 @@ const Onboarding = () => {
             }
             onNotesChange={(audienceNotes) =>
               setGoogleData((prev) => ({ ...prev, audienceNotes }))
+            }
+          />
+        );
+
+      case "goals":
+        return (
+          <GoalsStep
+            campaignGoal={googleData.campaignGoal}
+            monthlyBudget={googleData.monthlyBudget}
+            targetLocations={googleData.targetLocations}
+            onChange={(field, value) =>
+              setGoogleData((prev) => ({ ...prev, [field]: value }))
             }
           />
         );

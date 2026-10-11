@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AtSign, Building2, Check, Megaphone, Users } from "lucide-react";
+import { Building2, Check, MapPin, Megaphone, Phone, User, Users } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -114,32 +114,68 @@ export function RoleStep({
   );
 }
 
-export function UsernameStep({
-  username,
-  onUsernameChange,
+export const isValidPhone = (phone: string) =>
+  phone.replace(/[^0-9]/g, "").length >= 10;
+
+export function DetailsStep({
+  fullName,
+  phone,
+  onChange,
 }: {
-  username: string;
-  onUsernameChange: (value: string) => void;
+  fullName: string;
+  phone: string;
+  onChange: (field: "fullName" | "phone", value: string) => void;
 }) {
+  const showPhoneError = phone.trim() !== "" && !isValidPhone(phone);
+
   return (
-    <div>
-      <Label htmlFor="username">Username</Label>
-      <div className="relative mt-1.5">
-        <AtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          id="username"
-          type="text"
-          autoComplete="username"
-          placeholder="e.g. adaeze_okafor"
-          maxLength={50}
-          value={username}
-          onChange={(e) => onUsernameChange(e.target.value)}
-          className="h-12 pl-10"
-        />
+    <div className="flex flex-col gap-6">
+      <div>
+        <Label htmlFor="fullName">Full name</Label>
+        <div className="relative mt-1.5">
+          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="fullName"
+            type="text"
+            autoComplete="name"
+            placeholder="e.g. Adaeze Okafor"
+            maxLength={80}
+            value={fullName}
+            onChange={(e) => onChange("fullName", e.target.value)}
+            className="h-12 pl-10"
+          />
+        </div>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        At least 2 characters. This is how you will appear on Seltra.
-      </p>
+
+      <div>
+        <Label htmlFor="phone">WhatsApp phone number</Label>
+        <div className="relative mt-1.5">
+          <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="e.g. 0803 123 4567"
+            maxLength={20}
+            value={phone}
+            onChange={(e) =>
+              onChange("phone", e.target.value.replace(/[^0-9+\s-]/g, ""))
+            }
+            aria-invalid={showPhoneError}
+            aria-describedby="phone-hint"
+            className="h-12 pl-10"
+          />
+        </div>
+        <p
+          id="phone-hint"
+          className={`mt-2 text-xs ${showPhoneError ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {showPhoneError
+            ? "Please enter a valid phone number (at least 10 digits)."
+            : "Must be a WhatsApp line. We use it for important account updates."}
+        </p>
+      </div>
     </div>
   );
 }
@@ -280,6 +316,122 @@ export function AudienceStep({
           onChange={(e) => onNotesChange(e.target.value)}
           className="mt-1.5 min-h-24"
         />
+      </div>
+    </div>
+  );
+}
+
+export const campaignGoalOptions = [
+  "Brand awareness",
+  "More sales",
+  "Website or app visits",
+  "Walk-in customers",
+  "Promote an event",
+  "Grow social followers",
+];
+
+export const budgetOptions = [
+  "Under ₦50,000",
+  "₦50,000 - ₦200,000",
+  "₦200,000 - ₦500,000",
+  "₦500,000 - ₦1,000,000",
+  "Over ₦1,000,000",
+  "Not sure yet",
+];
+
+function ChoiceChips({
+  options,
+  value,
+  onSelect,
+  label,
+}: {
+  options: string[];
+  value: string;
+  onSelect: (value: string) => void;
+  label: string;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
+      {options.map((item) => {
+        const selected = value === item;
+        return (
+          <button
+            key={item}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onSelect(item)}
+            className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
+              selected
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {selected && <Check className="h-3.5 w-3.5" />}
+            {item}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function GoalsStep({
+  campaignGoal,
+  monthlyBudget,
+  targetLocations,
+  onChange,
+}: {
+  campaignGoal: string;
+  monthlyBudget: string;
+  targetLocations: string;
+  onChange: (
+    field: "campaignGoal" | "monthlyBudget" | "targetLocations",
+    value: string
+  ) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <p className="mb-3 text-sm font-medium text-foreground">
+          What is your main goal for advertising?
+        </p>
+        <ChoiceChips
+          label="Main advertising goal"
+          options={campaignGoalOptions}
+          value={campaignGoal}
+          onSelect={(value) => onChange("campaignGoal", value)}
+        />
+      </div>
+
+      <div>
+        <p className="mb-3 text-sm font-medium text-foreground">
+          Roughly how much do you plan to spend per month?
+        </p>
+        <ChoiceChips
+          label="Monthly advertising budget"
+          options={budgetOptions}
+          value={monthlyBudget}
+          onSelect={(value) => onChange("monthlyBudget", value)}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="targetLocations">
+          Where are your customers? (optional)
+        </Label>
+        <div className="relative mt-1.5">
+          <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="targetLocations"
+            type="text"
+            placeholder="e.g. Lagos, Abuja, or nationwide"
+            maxLength={200}
+            value={targetLocations}
+            onChange={(e) => onChange("targetLocations", e.target.value)}
+            className="h-12 pl-10"
+          />
+        </div>
       </div>
     </div>
   );
