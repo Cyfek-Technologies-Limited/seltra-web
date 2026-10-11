@@ -24,11 +24,12 @@ import { Input } from "../../../components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSearchParams } from "next/navigation";
+import { AuthDivider, GoogleAuthButton } from "@/components/GoogleAuthButton";
 type UserRole = "publisher" | "advertiser";
 type SignupStep = "role-selection" | "registration";
 export default function Register() {
   const searchParams = useSearchParams();
-  const { isLoading, signUp } = useAuth();
+  const { isLoading, signUp, continueWithGoogle } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [currentStep, setCurrentStep] = useState<SignupStep>("role-selection");
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
@@ -58,6 +59,12 @@ export default function Register() {
     if (selectedRole) {
       setCurrentStep("registration");
     }
+  };
+  const handleGoogleSignup = async () => {
+    if (formData.referralCode) {
+      sessionStorage.setItem("pending_referral_code", formData.referralCode);
+    }
+    await continueWithGoogle();
   };
   const handleBack = () => {
     setCurrentStep("role-selection");
@@ -117,6 +124,15 @@ export default function Register() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 ">
+            <div className="w-full max-w-sm mx-auto flex flex-col gap-4">
+              <GoogleAuthButton
+                label="Sign up with Google"
+                onClick={handleGoogleSignup}
+                disabled={isLoading}
+                className="w-full"
+              />
+              <AuthDivider label="or sign up with email" />
+            </div>
             <div className="lg:flex gap-10 space-y-6 justify-center items-center">
               {/* Publisher Card */}
               <div

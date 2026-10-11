@@ -433,6 +433,69 @@ export function useAuth() {
     }
   };
 
+  // Role-less Google sign-in/sign-up. New Google users pick their role during onboarding.
+  const continueWithGoogle = async (): Promise<void> => {
+    setIsLoading(true);
+    clearCache();
+
+    try {
+      const response = await fetch(`${BASE_URL}/auth/google?flow=signup`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get Google auth URL");
+      }
+
+      const data = await response.json();
+
+      if (data.data?.authUrl) {
+        window.location.href = data.data.authUrl;
+      } else {
+        throw new Error("No auth URL received");
+      }
+    } catch (error: any) {
+      setIsLoading(false);
+      toast({
+        title: "Google Sign-in Failed",
+        description: error.message || "Failed to start Google sign-in",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const exchangeGoogleCode = async (
+    code: string
+  ): Promise<{ user: User; needsOnboarding: boolean }> => {
+    clearCache();
+
+    const response = await fetch(`${BASE_URL}/auth/google/exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ code }),
+    });
+
+    const res = await response.json();
+
+    if (!response.ok || res.status !== 200 || !res.data) {
+      throw new Error(res.error || "Google sign-in failed. Please try again.");
+    }
+
+    if (res.token) {
+      localStorage.setItem("auth-token", res.token);
+    }
+
+    const needsOnboarding = Boolean(res.needsOnboarding);
+    if (!needsOnboarding) {
+      cacheUser(res.data);
+      setUser(res.data);
+    }
+
+    return { user: res.data, needsOnboarding };
+  };
+
   const forgotPassword = async (email: string): Promise<boolean> => {
     try {
       const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
@@ -559,6 +622,8 @@ export function useAuth() {
     signUp,
     login,
     googleLogin,
+    continueWithGoogle,
+    exchangeGoogleCode,
     logout,
     refreshUser,
     getCurrentUser,

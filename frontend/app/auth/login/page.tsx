@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/ui/ReusableComponents";
 import Link from "next/link";
+import { AuthDivider, GoogleAuthButton } from "@/components/GoogleAuthButton";
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -23,7 +24,7 @@ export default function Login() {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const { isLoading, login, googleLogin } = useAuth();
+  const { isLoading, login, googleLogin, continueWithGoogle } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,6 +148,16 @@ export default function Login() {
               )}
             </Button>
           </form>
+
+          <div className="mt-4 flex flex-col gap-4">
+            <AuthDivider label="or" />
+            <GoogleAuthButton
+              label="Continue with Google"
+              onClick={continueWithGoogle}
+              disabled={isLoading}
+              className="w-full"
+            />
+          </div>
 
           <div className="mt-4 text-center">
             <p className="text-sm text-muted-foreground">
