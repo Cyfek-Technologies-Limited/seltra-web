@@ -65,7 +65,9 @@ export default function VerifyEmailPage() {
         }
 
         setTimeout(() => {
-          if (data.data?.role === "publisher") {
+          if (data.needsOnboarding || !data.data?.role) {
+            router.push("/auth/onboarding?flow=email");
+          } else if (data.data?.role === "publisher") {
             // router.push("/dashboard/publisher");
             router.push("/auth/onboarding");
           } else if (data.data?.role === "advertiser") {

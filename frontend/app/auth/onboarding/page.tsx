@@ -166,7 +166,10 @@ const stepMotion = {
 const Onboarding = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isGoogleFlow = searchParams.get("flow") === "google";
+  const flow = searchParams.get("flow");
+  const isGoogleFlow = flow === "google";
+  const isEmailFlow = flow === "email";
+  const needsRoleSelection = isGoogleFlow || isEmailFlow;
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
   const [stepIndex, setStepIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -187,7 +190,7 @@ const Onboarding = () => {
   });
 
   const steps = useMemo<StepKey[]>(() => {
-    if (!isGoogleFlow) {
+    if (!needsRoleSelection) {
       return ["welcome", ...PUBLISHER_STEPS];
     }
     const roleSteps =
@@ -196,12 +199,18 @@ const Onboarding = () => {
         : googleData.role === "publisher"
         ? PUBLISHER_STEPS
         : [];
-    return ["role", "username", ...roleSteps];
-  }, [isGoogleFlow, googleData.role]);
+    // Email users already chose a name at sign-up, so only Google users pick a username here.
+    return isGoogleFlow
+      ? ["role", "username", ...roleSteps]
+      : ["role", ...roleSteps];
+  }, [needsRoleSelection, isGoogleFlow, googleData.role]);
 
   const totalSteps = steps.length;
   const currentStep = steps[stepIndex] ?? steps[0];
-  const isLastStep = stepIndex === totalSteps - 1 && currentStep !== "username";
+  const isLastStep =
+    stepIndex === totalSteps - 1 &&
+    currentStep !== "username" &&
+    currentStep !== "role";
 
   const ageError = useMemo(() => {
     if (!data.age) return "";
@@ -307,24 +316,28 @@ const Onboarding = () => {
     }
   };
 
-  const handleGoogleSubmit = async () => {
+  const handleRoleSignupSubmit = async () => {
     if (!canProceed() || !googleData.role) return;
 
     setIsSubmitting(true);
 
     try {
-      const referralCode = sessionStorage.getItem("pending_referral_code");
+      const referralCode = isGoogleFlow
+        ? sessionStorage.getItem("pending_referral_code")
+        : null;
 
       const completeResponse = await fetch(
-        `${BASE_URL}/auth/google/complete-signup`,
+        isGoogleFlow
+          ? `${BASE_URL}/auth/google/complete-signup`
+          : `${BASE_URL}/auth/complete-signup`,
         {
           method: "POST",
           headers: getAuthHeaders(),
           credentials: "include",
           body: JSON.stringify({
             role: googleData.role,
-            username: googleData.username.trim(),
             acceptedTerms: googleData.agreeToTerms,
+            ...(isGoogleFlow ? { username: googleData.username.trim() } : {}),
             ...(referralCode ? { referralCode } : {}),
           }),
         }
@@ -377,7 +390,7 @@ const Onboarding = () => {
           ? "/dashboard/publisher"
           : "/dashboard/advertiser";
     } catch (error) {
-      console.error("Google onboarding error:", error);
+      console.error("Onboarding error:", error);
       alert((error as Error).message);
       setIsSubmitting(false);
     }
@@ -625,7 +638,7 @@ const Onboarding = () => {
               <motion.div key={currentStep} {...stepMotion}>
                 <div className="mb-8">
                   <p className="text-sm text-primary font-medium mb-2">
-                    {isGoogleFlow && !googleData.role
+                    {needsRoleSelection && !googleData.role
                       ? "Getting started"
                       : `Step ${stepIndex + 1} of ${totalSteps}`}
                   </p>
@@ -661,7 +674,9 @@ const Onboarding = () => {
                 </Button>
               ) : (
                 <Button
-                  onClick={isGoogleFlow ? handleGoogleSubmit : handleSubmit}
+                  onClick={
+                    needsRoleSelection ? handleRoleSignupSubmit : handleSubmit
+                  }
                   disabled={!canProceed() || isSubmitting}
                   className="gap-2"
                 >
