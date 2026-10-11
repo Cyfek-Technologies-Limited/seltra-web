@@ -28,6 +28,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        {
+          status: 400,
+          error:
+            "This account uses Google sign-in. Please continue with Google.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Verify password
     const correctPassword = await verifyPassword(user.passwordHash, password);
     if (!correctPassword) {
@@ -53,6 +64,8 @@ export async function POST(req: NextRequest) {
       isAdmin: roles.includes("ADMIN"), // UPDATED: uppercase
       createdAt: user.createdAt,
       roles: roles.map((role) => role.toLowerCase()), // UPDATED: convert to lowercase for frontend compatibility
+      onboardingCompleted: roles.length > 0,
+      needsOnboarding: roles.length === 0,
     };
 
     const responseData = {

@@ -342,6 +342,8 @@ export function useAuth() {
           window.location.href = "/dashboard/publisher";
         } else if (res?.data.isAdvertiser) {
           window.location.href = "/dashboard/advertiser";
+        } else {
+          window.location.href = "/auth/onboarding?flow=email";
         }
 
         return true;

@@ -6,18 +6,30 @@ import { prisma } from "../../../../../lib/db.cjs";
 import { hashPassword } from "../../../../../lib";
 import { sendVerificationEmail } from "../../../../../lib/email-service";
 
+// New signups send only email + password; role, name and phone are collected
+// during onboarding. The legacy fields stay optional so older clients keep working.
 const registerSchema = z.object({
-  username: z.string().min(1),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   password: z.string().min(8),
-  phone: z.string().min(10),
   referralCode: z.string().optional(),
-  role: z.enum(["publisher", "advertiser", "admin"]),
+  username: z.string().min(1).optional(),
+  phone: z.string().min(10).optional(),
+  role: z.enum(["publisher", "advertiser", "admin"]).optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          status: 400,
+          error: "Please enter a valid email and a password of at least 8 characters",
+        },
+        { status: 400 }
+      );
+    }
     const {
       username,
       phone,
@@ -25,15 +37,22 @@ export async function POST(req: NextRequest) {
       password,
       referralCode,
       role: inputRole,
-    } = registerSchema.parse(body);
+    } = parsed.data;
 
     console.log("🚨 PRODUCTION REGISTRATION - NO USER CREATION:", email);
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
+      const isGoogleOnly =
+        existingUser.authProvider === "GOOGLE" && !existingUser.passwordHash;
       return NextResponse.json(
-        { status: "409", error: "User already exists with this email" },
+        {
+          status: 409,
+          error: isGoogleOnly
+            ? "This email is registered with Google. Please continue with Google."
+            : "An account with this email already exists",
+        },
         { status: 409 }
       );
     }
@@ -60,12 +79,13 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await hashPassword(password);
 
     // Store in pending registrations
+    // An empty role means "choose during onboarding".
     const pendingData: any = {
       email,
-      username,
-      phone,
+      username: username ?? "",
+      phone: phone ?? "",
       password: hashedPassword,
-      role: inputRole,
+      role: inputRole ?? "",
       token,
       expiresAt,
     };
@@ -81,7 +101,11 @@ export async function POST(req: NextRequest) {
     });
 
     // Send ACTUAL verification email
-    const emailSent = await sendVerificationEmail(email, token, username);
+    const emailSent = await sendVerificationEmail(
+      email,
+      token,
+      username || "there"
+    );
     if (!emailSent) {
       // Clean up pending registration if email fails
       await prisma.pendingRegistration.deleteMany({ where: { email } });
@@ -95,6 +119,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       status: 200,
+      msg: "Verification email sent",
       message:
         "Verification email sent. You must verify your email before your account is created.",
       verificationRequired: true,

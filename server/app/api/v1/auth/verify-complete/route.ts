@@ -51,18 +51,24 @@ export async function POST(req: NextRequest) {
 
     console.log("✅ TOKEN VALID - CREATING USER:", email);
 
+    // Empty role = new email-only signup; role is chosen during onboarding.
+    const pendingRole = pendingRegistration.role || null;
+
     // Create user
     const newUser = await prisma.user.create({
       data: {
         email: pendingRegistration.email,
-        username: pendingRegistration.username,
-        phone: pendingRegistration.phone,
+        username: pendingRegistration.username || null,
+        ...(pendingRegistration.phone
+          ? { phone: pendingRegistration.phone }
+          : {}),
         passwordHash: pendingRegistration.password,
         emailVerified: new Date(),
-        roles:
-          pendingRegistration.role === "publisher"
-            ? ["PUBLISHER"]
-            : ["ADVERTISER"],
+        roles: !pendingRole
+          ? []
+          : pendingRole === "publisher"
+          ? ["PUBLISHER"]
+          : ["ADVERTISER"],
       },
     });
 
@@ -105,20 +111,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Create token
-    const frontendRoles = [pendingRegistration.role];
+    const frontendRoles = pendingRole ? [pendingRole] : [];
     const authToken = await createAuthToken(newUser.id, frontendRoles);
 
     const response = NextResponse.json({
       status: 200,
+      msg: "Email verified",
       message: "Account verified and created successfully!",
       token: authToken,
+      needsOnboarding: !pendingRole,
       data: {
         _id: newUser.id,
+        id: newUser.id,
         username: newUser.username,
         email: newUser.email,
-        role: pendingRegistration.role,
-        roles: [pendingRegistration.role],
+        role: pendingRole,
+        roles: frontendRoles,
         emailVerified: true,
+        onboardingCompleted: Boolean(pendingRole),
       },
     });
 

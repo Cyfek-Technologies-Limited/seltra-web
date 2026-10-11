@@ -41,6 +41,9 @@ interface UserWithRelations {
   id: string;
   email: string;
   username: string | null;
+  phone?: string;
+  avatar?: string | null;
+  authProvider?: string;
   createdAt: Date;
   roles: string[];
   publisher?: PublisherWithAccount | null;
@@ -253,6 +256,14 @@ export async function GET(request: NextRequest) {
       username: userData.username,
       createdAt: userData.createdAt,
       roles: roles.map((role) => role.toLowerCase()),
+      phone:
+        userData.phone && userData.phone !== "No Phone Number"
+          ? userData.phone
+          : null,
+      avatar: userData.avatar ?? null,
+      authProvider: userData.authProvider,
+      onboardingCompleted: roles.length > 0,
+      needsOnboarding: roles.length === 0,
       publisher: userData.publisher,
       isPublisher: roles.includes("PUBLISHER"),
       isAdvertiser: roles.includes("ADVERTISER"),
