@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -13,60 +12,67 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/hooks/useAuth";
 
-export default function OAuthSuccessPage() {
+function OAuthSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { exchangeGoogleCode } = useAuth();
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading"
   );
   const [message, setMessage] = useState("");
+  // The code is single-use, so guard against React running the effect twice.
+  const hasExchanged = useRef(false);
 
   useEffect(() => {
-    processOAuthCallback();
-  }, []);
+    if (hasExchanged.current) return;
+    hasExchanged.current = true;
 
-  const processOAuthCallback = async () => {
-    try {
-      // Get the role from sessionStorage
-      const selectedRole = sessionStorage.getItem("oauth_role");
+    const code = searchParams.get("code");
+    const oauthError = searchParams.get("error");
 
-      if (!selectedRole) {
-        throw new Error("No role selected");
-      }
-
-      // Call backend to complete OAuth registration
-      const response = await fetch("/api/v1/auth/oauth-complete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          role: selectedRole,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setStatus("success");
-        setMessage("Account created successfully! Redirecting to dashboard...");
-
-        // Clear the stored role
-        sessionStorage.removeItem("oauth_role");
-
-        // Redirect to dashboard after 2 seconds
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 2000);
-      } else {
-        throw new Error(data.error || "Failed to create account");
-      }
-    } catch (error) {
+    if (oauthError || !code) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "An error occurred");
+      setMessage(
+        oauthError
+          ? decodeURIComponent(oauthError)
+          : "Missing sign-in code. Please try again."
+      );
+      return;
     }
-  };
+
+    exchangeGoogleCode(code)
+      .then(({ user, needsOnboarding }) => {
+        setStatus("success");
+
+        if (needsOnboarding) {
+          if (user.username) {
+            sessionStorage.setItem("google_onboarding_username", user.username);
+          }
+          setMessage("Signed in with Google. Let's finish setting up your account...");
+          router.replace("/auth/onboarding?flow=google");
+          return;
+        }
+
+        setMessage("Signed in successfully. Redirecting to your dashboard...");
+        if (user.isAdmin) {
+          window.location.href = "/dashboard/admin";
+        } else if (user.isPublisher) {
+          window.location.href = "/dashboard/publisher";
+        } else if (user.isAdvertiser) {
+          window.location.href = "/dashboard/advertiser";
+        } else {
+          router.replace("/auth/onboarding?flow=google");
+        }
+      })
+      .catch((error: unknown) => {
+        setStatus("error");
+        setMessage(
+          error instanceof Error ? error.message : "Google sign-in failed."
+        );
+      });
+  }, [searchParams, exchangeGoogleCode, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -95,8 +101,8 @@ export default function OAuthSuccessPage() {
             {status === "success"
               ? "Success!"
               : status === "error"
-              ? "Error"
-              : "Processing..."}
+              ? "Sign-in failed"
+              : "Signing you in..."}
           </CardTitle>
         </CardHeader>
 
@@ -105,18 +111,6 @@ export default function OAuthSuccessPage() {
             <Alert variant={status === "error" ? "destructive" : "default"}>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
-          )}
-
-          {status === "success" && (
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-4">
-                Your account has been created successfully. You will be
-                redirected shortly.
-              </p>
-              <Button asChild className="w-full">
-                <Link href="/dashboard">Go to Dashboard</Link>
-              </Button>
-            </div>
           )}
 
           {status === "error" && (
@@ -128,12 +122,26 @@ export default function OAuthSuccessPage() {
                 Try Again
               </Button>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/">Back to Home</Link>
+                <Link href="/auth/login">Back to Login</Link>
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function OAuthSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <OAuthSuccessContent />
+    </Suspense>
   );
 }

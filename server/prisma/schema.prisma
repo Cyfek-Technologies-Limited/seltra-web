@@ -37,6 +37,24 @@ model User {
   notifications       Notification[]
   passwordResetTokens PasswordResetToken?
   referralUse         ReferralUse[]
+  advertiserProfile   AdvertiserProfile?
+}
+
+model AdvertiserProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  companyName     String
+  industry        String
+  targetAudience  String[]
+  audienceNotes   String?
+  campaignGoal    String
+  monthlyBudget   String
+  targetLocations String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("advertiser_profiles")
 }
 
 enum UserRole {

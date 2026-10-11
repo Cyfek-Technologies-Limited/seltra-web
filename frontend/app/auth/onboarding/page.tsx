@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,6 +17,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AudienceStep,
+  BusinessStep,
+  DetailsStep,
+  GoalsStep,
+  OnboardingRole,
+  RoleStep,
+  isValidPhone,
+} from "@/components/onboarding/GoogleOnboardingSteps";
 
 interface OnboardingData {
   age: string;
@@ -24,6 +33,31 @@ interface OnboardingData {
   location: string;
   occupation: string;
 }
+
+interface GoogleSignupData {
+  role: OnboardingRole | null;
+  agreeToTerms: boolean;
+  fullName: string;
+  phone: string;
+  companyName: string;
+  industry: string;
+  targetAudience: string[];
+  audienceNotes: string;
+  campaignGoal: string;
+  monthlyBudget: string;
+  targetLocations: string;
+}
+
+type StepKey =
+  | "welcome"
+  | "role"
+  | "details"
+  | "personal"
+  | "location"
+  | "occupation"
+  | "business"
+  | "audience"
+  | "goals";
 
 const genderOptions = [
   { id: "female", label: "Female", emoji: "👩" },
@@ -47,9 +81,17 @@ const occupationSuggestions = [
   "Other",
 ];
 
-const stepContent = {
-  1: {
-    eyebrow: "Step 1 of 4",
+const stepContent: Record<
+  StepKey,
+  {
+    title: string;
+    description: string;
+    sideEmoji: string;
+    sideTitle: string;
+    sideText: string;
+  }
+> = {
+  welcome: {
     title: "Welcome to Seltra",
     description:
       "   Hey 👋, welcome to Seltra. We just want to get a couple more details to make your experience better.",
@@ -58,8 +100,24 @@ const stepContent = {
     sideText:
       "A short onboarding flow helps us tailor Seltra to each new user from day one.",
   },
-  2: {
-    eyebrow: "Step 2 of 4",
+  role: {
+    title: "How do you want to use Seltra?",
+    description:
+      "Hey 👋, welcome to Seltra. Choose your account type to get started.",
+    sideEmoji: "👋",
+    sideTitle: "A better start",
+    sideText:
+      "Publishers earn by sharing ads on their social media. Advertisers get their business seen by thousands.",
+  },
+  details: {
+    title: "Your contact details",
+    description: "Tell us your name and the WhatsApp number we can reach you on.",
+    sideEmoji: "🪪",
+    sideTitle: "Stay in the loop",
+    sideText:
+      "We use your WhatsApp line for payouts, campaign updates, and important account notices.",
+  },
+  personal: {
     title: "Tell us about yourself",
     description:
       "A few personal details help us shape recommendations and messaging for you.",
@@ -68,8 +126,7 @@ const stepContent = {
     sideText:
       "We use these basics to make the product feel more relevant and less generic.",
   },
-  3: {
-    eyebrow: "Step 3 of 4",
+  location: {
     title: "Where are you based?",
     description:
       "Enter your Location Below. You can enter city, state, or country in the format that feels natural to you",
@@ -78,8 +135,7 @@ const stepContent = {
     sideText:
       "Location can improve onboarding, regional recommendations, and communication.",
   },
-  4: {
-    eyebrow: "Step 4 of 4",
+  occupation: {
     title: "What do you do for a living?",
     description: "Type in your occupation or select from the options below",
     sideEmoji: "💼",
@@ -87,12 +143,51 @@ const stepContent = {
     sideText:
       "Knowing what users do helps shape onboarding paths, tips, and suggested actions.",
   },
-} as const;
+  business: {
+    title: "Tell us about your business",
+    description: "Let us know which brand you are advertising and its industry.",
+    sideEmoji: "🏢",
+    sideTitle: "Your brand, amplified",
+    sideText:
+      "Knowing your business helps us match your campaigns with the right publishers.",
+  },
+  audience: {
+    title: "Who is your target audience?",
+    description: "Select the kinds of people you want your ads to reach.",
+    sideEmoji: "🎯",
+    sideTitle: "Reach the right people",
+    sideText:
+      "Your audience helps us put your campaigns in front of people most likely to care.",
+  },
+  goals: {
+    title: "What are you hoping to achieve?",
+    description: "A few quick questions so we can plan the right campaigns for you.",
+    sideEmoji: "🚀",
+    sideTitle: "Campaigns that fit",
+    sideText:
+      "Your goals and budget help us recommend campaign sizes and publishers that deliver results.",
+  },
+};
+
+const PUBLISHER_STEPS: StepKey[] = ["details", "personal", "location", "occupation"];
+const ADVERTISER_STEPS: StepKey[] = ["details", "business", "audience", "goals"];
+
+const stepMotion = {
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 },
+  transition: { duration: 0.25 },
+};
 
 const Onboarding = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const flow = searchParams.get("flow");
+  const isGoogleFlow = flow === "google";
+  const isEmailFlow = flow === "email";
+  const needsRoleSelection = isGoogleFlow || isEmailFlow;
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
-  const [step, setStep] = useState(1);
+  const [stepIndex, setStepIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [data, setData] = useState<OnboardingData>({
     age: "",
@@ -100,8 +195,37 @@ const Onboarding = () => {
     location: "",
     occupation: "",
   });
+  const [googleData, setGoogleData] = useState<GoogleSignupData>({
+    role: null,
+    agreeToTerms: false,
+    fullName: "",
+    phone: "",
+    companyName: "",
+    industry: "",
+    targetAudience: [],
+    audienceNotes: "",
+    campaignGoal: "",
+    monthlyBudget: "",
+    targetLocations: "",
+  });
 
-  const totalSteps = 4;
+  const steps = useMemo<StepKey[]>(() => {
+    // Existing publishers without a flow param only fill in their profile.
+    if (!needsRoleSelection) {
+      return ["welcome", "personal", "location", "occupation"];
+    }
+    const roleSteps =
+      googleData.role === "advertiser"
+        ? ADVERTISER_STEPS
+        : googleData.role === "publisher"
+        ? PUBLISHER_STEPS
+        : [];
+    return ["role", ...roleSteps];
+  }, [needsRoleSelection, googleData.role]);
+
+  const totalSteps = steps.length;
+  const currentStep = steps[stepIndex] ?? steps[0];
+  const isLastStep = stepIndex === totalSteps - 1 && currentStep !== "role";
 
   const ageError = useMemo(() => {
     if (!data.age) return "";
@@ -113,29 +237,86 @@ const Onboarding = () => {
   }, [data.age]);
 
   const canProceed = () => {
-    switch (step) {
-      case 1:
+    switch (currentStep) {
+      case "welcome":
         return true;
-      case 2:
+      case "role":
+        return googleData.role !== null && googleData.agreeToTerms;
+      case "details":
+        return (
+          googleData.fullName.trim().length >= 2 &&
+          isValidPhone(googleData.phone)
+        );
+      case "personal":
         return data.age.trim() !== "" && !ageError && data.gender !== "";
-      case 3:
+      case "location":
         return data.location.trim().length > 1;
-      case 4:
+      case "occupation":
         return data.occupation.trim().length > 1;
+      case "business":
+        return (
+          googleData.companyName.trim().length > 1 &&
+          googleData.industry.trim().length > 1
+        );
+      case "audience":
+        return googleData.targetAudience.length > 0;
+      case "goals":
+        return googleData.campaignGoal !== "" && googleData.monthlyBudget !== "";
       default:
         return false;
     }
   };
 
   const handleNext = () => {
-    if (step < totalSteps && canProceed()) {
-      setStep((prev) => prev + 1);
+    if (!canProceed() || isLastStep) return;
+
+    if (currentStep === "role" && !googleData.fullName) {
+      const suggested = sessionStorage.getItem("google_onboarding_username");
+      if (suggested) {
+        setGoogleData((prev) => ({ ...prev, fullName: suggested }));
+      }
     }
+    setStepIndex((prev) => prev + 1);
   };
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep((prev) => prev - 1);
+    if (stepIndex > 0) {
+      setStepIndex((prev) => prev - 1);
+    }
+  };
+
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+
+    // Add auth token from localStorage for iPhone compatibility
+    const token = localStorage.getItem("auth-token");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
+  const submitPublisherOnboarding = async () => {
+    const payload = {
+      age: Number(data.age),
+      gender: data.gender,
+      location: data.location.trim(),
+      occupation: data.occupation.trim(),
+    };
+
+    const response = await fetch(`${BASE_URL}/publisher/onboarding`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+
+    if (response.status !== 200) {
+      throw new Error(result.error || "Failed to update publisher profile");
     }
   };
 
@@ -145,38 +326,8 @@ const Onboarding = () => {
     setIsSubmitting(true);
 
     try {
-      const payload = {
-        age: Number(data.age),
-        gender: data.gender,
-        location: data.location.trim(),
-        occupation: data.occupation.trim(),
-      };
-
-      const headers: HeadersInit = {
-        "Content-Type": "application/json",
-      };
-
-      // Add auth token from localStorage for iPhone compatibility
-      const token = localStorage.getItem("auth-token");
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${BASE_URL}/publisher/onboarding`, {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-
-      if (response.status === 200) {
-        router.push("/dashboard/publisher");
-        return;
-      }
-
-      throw new Error(result.error || "Failed to update publisher profile");
+      await submitPublisherOnboarding();
+      router.push("/dashboard/publisher");
     } catch (error) {
       console.error("Onboarding error:", error);
       alert((error as Error).message);
@@ -184,6 +335,314 @@ const Onboarding = () => {
       setIsSubmitting(false);
     }
   };
+
+  const handleRoleSignupSubmit = async () => {
+    if (!canProceed() || !googleData.role) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const referralCode = isGoogleFlow
+        ? sessionStorage.getItem("pending_referral_code")
+        : null;
+
+      const completeResponse = await fetch(
+        isGoogleFlow
+          ? `${BASE_URL}/auth/google/complete-signup`
+          : `${BASE_URL}/auth/complete-signup`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify({
+            role: googleData.role,
+            acceptedTerms: googleData.agreeToTerms,
+            username: googleData.fullName.trim(),
+            phone: googleData.phone.trim(),
+            ...(referralCode ? { referralCode } : {}),
+          }),
+        }
+      );
+      const completeResult = await completeResponse.json();
+
+      if (completeResponse.status !== 200) {
+        throw new Error(
+          completeResult.error || "Failed to complete your account setup"
+        );
+      }
+
+      // Role changed, so pick up the refreshed token if one was issued.
+      if (completeResult.token) {
+        localStorage.setItem("auth-token", completeResult.token);
+      }
+      localStorage.removeItem("cached_user");
+
+      if (googleData.role === "publisher") {
+        await submitPublisherOnboarding();
+      } else {
+        const advertiserResponse = await fetch(
+          `${BASE_URL}/advertiser/onboarding`,
+          {
+            method: "POST",
+            headers: getAuthHeaders(),
+            credentials: "include",
+            body: JSON.stringify({
+              companyName: googleData.companyName.trim(),
+              industry: googleData.industry.trim(),
+              targetAudience: googleData.targetAudience,
+              audienceNotes: googleData.audienceNotes.trim(),
+              campaignGoal: googleData.campaignGoal,
+              monthlyBudget: googleData.monthlyBudget,
+              targetLocations: googleData.targetLocations.trim(),
+            }),
+          }
+        );
+        const advertiserResult = await advertiserResponse.json();
+
+        if (advertiserResponse.status !== 200) {
+          throw new Error(
+            advertiserResult.error || "Failed to update advertiser profile"
+          );
+        }
+      }
+
+      sessionStorage.removeItem("pending_referral_code");
+      sessionStorage.removeItem("google_onboarding_username");
+
+      window.location.href =
+        googleData.role === "publisher"
+          ? "/dashboard/publisher"
+          : "/dashboard/advertiser";
+    } catch (error) {
+      console.error("Onboarding error:", error);
+      alert((error as Error).message);
+      setIsSubmitting(false);
+    }
+  };
+
+  const renderStepBody = () => {
+    switch (currentStep) {
+      case "welcome":
+        return <div className="space-y-4" />;
+
+      case "role":
+        return (
+          <RoleStep
+            role={googleData.role}
+            onRoleChange={(role) =>
+              setGoogleData((prev) => ({ ...prev, role }))
+            }
+            agreeToTerms={googleData.agreeToTerms}
+            onAgreeToTermsChange={(agreeToTerms) =>
+              setGoogleData((prev) => ({ ...prev, agreeToTerms }))
+            }
+          />
+        );
+
+      case "details":
+        return (
+          <DetailsStep
+            fullName={googleData.fullName}
+            phone={googleData.phone}
+            onChange={(field, value) =>
+              setGoogleData((prev) => ({ ...prev, [field]: value }))
+            }
+          />
+        );
+
+      case "personal":
+        return (
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="age">Age</Label>
+              <Input
+                id="age"
+                inputMode="numeric"
+                placeholder="e.g 28"
+                value={data.age}
+                onChange={(e) =>
+                  setData({
+                    ...data,
+                    age: e.target.value.replace(/[^0-9]/g, ""),
+                  })
+                }
+                className="mt-1.5 h-12"
+              />
+              {ageError && (
+                <p className="text-sm text-destructive mt-2">{ageError}</p>
+              )}
+            </div>
+
+            <div>
+              <Label className="mb-3 block">Gender</Label>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {genderOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setData({ ...data, gender: option.id })}
+                    className={`relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-all ${
+                      data.gender === option.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-foreground/20"
+                    }`}
+                  >
+                    <span className="text-2xl">{option.emoji}</span>
+                    <span className="font-medium text-foreground">
+                      {option.label}
+                    </span>
+                    {data.gender === option.id && (
+                      <div className="ml-auto w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="w-4 h-4 text-primary-foreground" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case "location":
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <div className="relative mt-1.5">
+                <MapPin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="location"
+                  type="text"
+                  placeholder="e.g Chevron, Lekki Lagos, Nigeria"
+                  value={data.location}
+                  onChange={(e) =>
+                    setData({ ...data, location: e.target.value })
+                  }
+                  className="h-12 pl-10"
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case "occupation":
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="occupation">Occupation</Label>
+              <div className="relative mt-1.5">
+                <Briefcase className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="occupation"
+                  type="text"
+                  placeholder="e.g I work in oil and gas"
+                  value={data.occupation}
+                  onChange={(e) =>
+                    setData({ ...data, occupation: e.target.value })
+                  }
+                  className="h-12 pl-10"
+                />
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm text-muted-foreground mb-3">Quick picks</p>
+              <div className="flex flex-wrap gap-2">
+                {occupationSuggestions.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setData({ ...data, occupation: item })}
+                    className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                      data.occupation === item
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+              <p className="text-sm text-foreground font-medium">
+                Collected data preview
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3 mt-3 text-sm text-muted-foreground">
+                <div>
+                  <span className="font-medium text-foreground">Age:</span>{" "}
+                  {data.age || "—"}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">Gender:</span>{" "}
+                  {data.gender || "—"}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">
+                    Location:
+                  </span>{" "}
+                  {data.location || "—"}
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="font-medium text-foreground">
+                    Occupation:
+                  </span>{" "}
+                  {data.occupation || "—"}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case "business":
+        return (
+          <BusinessStep
+            companyName={googleData.companyName}
+            industry={googleData.industry}
+            onChange={(field, value) =>
+              setGoogleData((prev) => ({ ...prev, [field]: value }))
+            }
+          />
+        );
+
+      case "audience":
+        return (
+          <AudienceStep
+            targetAudience={googleData.targetAudience}
+            audienceNotes={googleData.audienceNotes}
+            onToggleAudience={(value) =>
+              setGoogleData((prev) => ({
+                ...prev,
+                targetAudience: prev.targetAudience.includes(value)
+                  ? prev.targetAudience.filter((item) => item !== value)
+                  : [...prev.targetAudience, value],
+              }))
+            }
+            onNotesChange={(audienceNotes) =>
+              setGoogleData((prev) => ({ ...prev, audienceNotes }))
+            }
+          />
+        );
+
+      case "goals":
+        return (
+          <GoalsStep
+            campaignGoal={googleData.campaignGoal}
+            monthlyBudget={googleData.monthlyBudget}
+            targetLocations={googleData.targetLocations}
+            onChange={(field, value) =>
+              setGoogleData((prev) => ({ ...prev, [field]: value }))
+            }
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const content = stepContent[currentStep];
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -203,7 +662,7 @@ const Onboarding = () => {
               <div
                 key={index}
                 className={`h-2 rounded-full transition-all duration-300 ${
-                  index <= step - 1 ? "w-8 bg-primary" : "w-2 bg-muted"
+                  index <= stepIndex ? "w-8 bg-primary" : "w-2 bg-muted"
                 }`}
               />
             ))}
@@ -213,280 +672,35 @@ const Onboarding = () => {
         <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
           <div className="w-full max-w-xl">
             <AnimatePresence mode="wait">
-              {step === 1 && (
-                <motion.div
-                  key="step1"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <div className="mb-8">
-                    <p className="text-sm text-primary font-medium mb-2">
-                      {stepContent[1].eyebrow}
-                    </p>
-                    <h1 className="text-3xl font-bold text-foreground mb-2">
-                      {stepContent[1].title}
-                    </h1>
-                    <p className="text-muted-foreground">
-                      {stepContent[1].description}
-                    </p>
-                  </div>
+              <motion.div key={currentStep} {...stepMotion}>
+                <div className="mb-8">
+                  <p className="text-sm text-primary font-medium mb-2">
+                    {needsRoleSelection && !googleData.role
+                      ? "Getting started"
+                      : `Step ${stepIndex + 1} of ${totalSteps}`}
+                  </p>
+                  <h1 className="text-3xl font-bold text-foreground mb-2">
+                    {content.title}
+                  </h1>
+                  <p className="text-muted-foreground">{content.description}</p>
+                </div>
 
-                  <div className="space-y-4">
-                    {/* <div className="rounded-2xl border border-border bg-muted/40 p-5">
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Welcome message
-                      </p>
-                      <p className="text-base font-medium text-foreground leading-7">
-                        Hey, welcome to Seltra. We just want to get a couple
-                        more details to make your experience better.
-                      </p>
-                    </div> */}
-
-                    {/* <div className="rounded-2xl border border-border p-4 bg-background">
-                      <p className="text-sm text-muted-foreground">
-                        This will only take a minute.
-                      </p>
-                    </div> */}
-                  </div>
-                </motion.div>
-              )}
-
-              {step === 2 && (
-                <motion.div
-                  key="step2"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <div className="mb-8">
-                    <p className="text-sm text-primary font-medium mb-2">
-                      {stepContent[2].eyebrow}
-                    </p>
-                    <h1 className="text-3xl font-bold text-foreground mb-2">
-                      {stepContent[2].title}
-                    </h1>
-                    <p className="text-muted-foreground">
-                      {stepContent[2].description}
-                    </p>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div>
-                      <Label htmlFor="age">Age</Label>
-                      <Input
-                        id="age"
-                        inputMode="numeric"
-                        placeholder="e.g 28"
-                        value={data.age}
-                        onChange={(e) =>
-                          setData({
-                            ...data,
-                            age: e.target.value.replace(/[^0-9]/g, ""),
-                          })
-                        }
-                        className="mt-1.5 h-12"
-                      />
-                      {ageError && (
-                        <p className="text-sm text-destructive mt-2">
-                          {ageError}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <Label className="mb-3 block">Gender</Label>
-                      <div className="grid sm:grid-cols-2 gap-3">
-                        {genderOptions.map((option) => (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() =>
-                              setData({ ...data, gender: option.id })
-                            }
-                            className={`relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-all ${
-                              data.gender === option.id
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-foreground/20"
-                            }`}
-                          >
-                            <span className="text-2xl">{option.emoji}</span>
-                            <span className="font-medium text-foreground">
-                              {option.label}
-                            </span>
-                            {data.gender === option.id && (
-                              <div className="ml-auto w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                                <Check className="w-4 h-4 text-primary-foreground" />
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {step === 3 && (
-                <motion.div
-                  key="step3"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <div className="mb-8">
-                    <p className="text-sm text-primary font-medium mb-2">
-                      {stepContent[3].eyebrow}
-                    </p>
-                    <h1 className="text-3xl font-bold text-foreground mb-2">
-                      {stepContent[3].title}
-                    </h1>
-                    <p className="text-muted-foreground">
-                      {stepContent[3].description}
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="location">Location</Label>
-                      <div className="relative mt-1.5">
-                        <MapPin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          id="location"
-                          type="text"
-                          placeholder="e.g Chevron, Lekki Lagos, Nigeria"
-                          value={data.location}
-                          onChange={(e) =>
-                            setData({ ...data, location: e.target.value })
-                          }
-                          className="h-12 pl-10"
-                        />
-                      </div>
-                    </div>
-
-                    {/* <div className="rounded-2xl border border-border p-4 bg-background">
-                      <p className="text-sm text-muted-foreground">
-                        Tip: You can enter city, state, or country in the format
-                        that feels natural to you.
-                      </p>
-                    </div> */}
-                  </div>
-                </motion.div>
-              )}
-
-              {step === 4 && (
-                <motion.div
-                  key="step4"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <div className="mb-8">
-                    <p className="text-sm text-primary font-medium mb-2">
-                      {stepContent[4].eyebrow}
-                    </p>
-                    <h1 className="text-3xl font-bold text-foreground mb-2">
-                      {stepContent[4].title}
-                    </h1>
-                    <p className="text-muted-foreground">
-                      {stepContent[4].description}
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="occupation">Occupation</Label>
-                      <div className="relative mt-1.5">
-                        <Briefcase className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          id="occupation"
-                          type="text"
-                          placeholder="e.g I work in oil and gas"
-                          value={data.occupation}
-                          onChange={(e) =>
-                            setData({ ...data, occupation: e.target.value })
-                          }
-                          className="h-12 pl-10"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Quick picks
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {occupationSuggestions.map((item) => (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() =>
-                              setData({ ...data, occupation: item })
-                            }
-                            className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                              data.occupation === item
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {item}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                      <p className="text-sm text-foreground font-medium">
-                        Collected data preview
-                      </p>
-                      <div className="grid sm:grid-cols-2 gap-3 mt-3 text-sm text-muted-foreground">
-                        <div>
-                          <span className="font-medium text-foreground">
-                            Age:
-                          </span>{" "}
-                          {data.age || "—"}
-                        </div>
-                        <div>
-                          <span className="font-medium text-foreground">
-                            Gender:
-                          </span>{" "}
-                          {data.gender || "—"}
-                        </div>
-                        <div>
-                          <span className="font-medium text-foreground">
-                            Location:
-                          </span>{" "}
-                          {data.location || "—"}
-                        </div>
-                        <div className="sm:col-span-2">
-                          <span className="font-medium text-foreground">
-                            Occupation:
-                          </span>{" "}
-                          {data.occupation || "—"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
+                {renderStepBody()}
+              </motion.div>
             </AnimatePresence>
 
             <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
               <Button
                 variant="ghost"
                 onClick={handleBack}
-                disabled={step === 1 || isSubmitting}
+                disabled={stepIndex === 0 || isSubmitting}
                 className="gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
               </Button>
 
-              {step < totalSteps ? (
+              {!isLastStep ? (
                 <Button
                   onClick={handleNext}
                   disabled={!canProceed()}
@@ -497,7 +711,9 @@ const Onboarding = () => {
                 </Button>
               ) : (
                 <Button
-                  onClick={handleSubmit}
+                  onClick={
+                    needsRoleSelection ? handleRoleSignupSubmit : handleSubmit
+                  }
                   disabled={!canProceed() || isSubmitting}
                   className="gap-2"
                 >
@@ -527,19 +743,15 @@ const Onboarding = () => {
 
         <div className="relative z-10 max-w-md text-center">
           <motion.div
-            key={step}
+            key={currentStep}
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="text-6xl mb-6">
-              {stepContent[step as 1 | 2 | 3 | 4].sideEmoji}
-            </div>
-            <h2 className="text-2xl font-bold mb-4">
-              {stepContent[step as 1 | 2 | 3 | 4].sideTitle}
-            </h2>
+            <div className="text-6xl mb-6">{content.sideEmoji}</div>
+            <h2 className="text-2xl font-bold mb-4">{content.sideTitle}</h2>
             <p className="text-primary-foreground/80 leading-7">
-              {stepContent[step as 1 | 2 | 3 | 4].sideText}
+              {content.sideText}
             </p>
 
             <div className="mt-10 grid grid-cols-3 gap-3 text-left">
@@ -563,4 +775,10 @@ const Onboarding = () => {
   );
 };
 
-export default Onboarding;
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <Onboarding />
+    </Suspense>
+  );
+}
