@@ -2,7 +2,8 @@ import { Resend } from "resend";
 import { prisma } from "./db.cjs";
 import { emailQueue } from "./queue-service";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Placeholder keeps `next build` from crashing when the key isn't set; sends fail until it is.
+const resend = new Resend(process.env.RESEND_API_KEY || "re_missing_api_key");
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // General email sending function

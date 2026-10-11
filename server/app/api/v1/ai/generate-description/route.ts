@@ -6,7 +6,7 @@ const AI_PROVIDER = process.env.AI_PROVIDER || "openai"; // openai, anthropic, e
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || "missing-api-key",
 });
 
 function generatePrompt(
