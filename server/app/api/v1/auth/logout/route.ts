@@ -13,23 +13,20 @@ export async function POST(request: NextRequest) {
     // Create response and clear the auth-token cookie
     const response = NextResponse.json(responseData, { status: 200 });
 
-    // Clear the auth-token cookie (must match your login cookie settings)
-    response.cookies.set("auth-token", "", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: 0, // Expire immediately
-      path: "/", // Make sure it matches the login path
-    });
-
-    // Optionally clear any other auth-related cookies
-    response.cookies.set("refresh-token", "", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: 0,
-      path: "/",
-    });
+    // Logout is a cross-site fetch (frontend and API are on different sites),
+    // and browsers drop SameSite=Lax Set-Cookie headers on cross-site responses,
+    // so the clearing cookie must be SameSite=None; Secure to take effect.
+    for (const name of ["auth-token", "refresh-token"]) {
+      response.cookies.set(name, "", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        maxAge: 0,
+        expires: new Date(0),
+        path: "/",
+      });
+    }
+    response.headers.set("Cache-Control", "no-store");
 
     // Add CORS headers (copy from /auth/me)
     response.headers.set(
