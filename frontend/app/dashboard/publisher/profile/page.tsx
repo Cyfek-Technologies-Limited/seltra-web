@@ -42,6 +42,7 @@ import Link from "next/link";
 import { getPublisherDashboard } from "@/lib/functions/publishers/earnings";
 import { toast } from "@/hooks/use-toast";
 import { VerifyPhoneModal } from "@/components/VerifyPhoneModal";
+import { DeleteAccountSection } from "@/components/DeleteAccountSection";
 
 export default function PublisherProfilePage() {
   const { user, userLoading } = useAuth();
@@ -997,6 +998,8 @@ export default function PublisherProfilePage() {
           </Card>
         </div>
       </div>
+
+      <DeleteAccountSection />
     </div>
   );
 }
