@@ -1,17 +1,7 @@
-import {
-  ArrowRight,
-  DollarSign,
-  Eye,
-  Hand,
-  Share2,
-  Target,
-  Users,
-  X,
-} from "lucide-react";
+import { ArrowRight, Hand, Share2, Target, Users, X } from "lucide-react";
 import React, { useState } from "react";
 import { Button } from "../ui/button";
 import Link from "next/link";
-import HeroImages from "../ui/HeroImages";
 
 const hero = {
   advertiser: {
@@ -53,20 +43,21 @@ const Hero = () => {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   return (
-    <section className="relative bg-primary text-white min-h-[90vh] overflow-hidden py-[100px]">
-      {/* Decorative background */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-transparent to-accent opacity-80" />
-        <div
-          className="absolute -bottom-40 left-[-10%] w-[120%] h-[60vh] rounded-t-full bg-gradient-to-r from-primary to-accent opacity-10 blur-3xl transform-gpu"
-          aria-hidden
+    <section className="relative isolate flex  items-center overflow-hidden bg-[#07101d] py-[11rem] text-white">
+      <div className="absolute inset-0 -z-10" aria-hidden="true">
+        <img
+          src="/images/hero-robot-2.png"
+          alt=""
+          className="h-full w-full object-cover object-[74%_center]"
         />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#07101d] via-[#07101d]/90 to-[#07101d]/35" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#07101d]/85 via-transparent to-[#07101d]/35" />
       </div>
 
       <div className="container mx-auto px-6 relative z-10">
-        <div className="lg:flex items-center gap-12">
+        <div className="lg:flex items-center gap-20">
           {/* Left: Text content */}
-          <div className="w-full lg:flex-[0.6]">
+          <div className="w-full max-w-2xl lg:flex-[0.65]">
             {/* Role Toggle */}
             <div className="flex items-center gap-2 mb-6 justify-start">
               <div className="text-sm text-white mr-2">I want to be a</div>
@@ -124,11 +115,16 @@ const Hero = () => {
             </div>
 
             {/* Dynamic Title & Subtitle */}
-            <h1 className="text-xl md:text-2xl capitalize lg:text-3xl font-semibold my-12 bg-clip-text w-full bg-gradient-to-r from-primary to-accent">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl leading-[1.08] font-semibold my-8 max-w-2xl text-white drop-shadow-lg">
+              {role === "advertiser"
+                ? hero.advertiser.title
+                : hero.publisher.title}
+            </h1>
+            <p className="max-w-xl text-base md:text-lg leading-relaxed text-white/85 mb-9 drop-shadow">
               {role === "advertiser"
                 ? hero.advertiser.subtitle
                 : hero.publisher.subtitle}
-            </h1>
+            </p>
 
             {/* CTA Buttons */}
             <div className="flex gap-4 items-start sm:items-center">
@@ -137,7 +133,13 @@ const Hero = () => {
                 className="border-[0.3px] border-black/20 shadow-md bg-accent text-white shadow-card hover:shadow-elevated transition-all duration-300"
                 asChild
               >
-                <Link href="auth/signup">
+                <Link
+                  href={
+                    role === "advertiser"
+                      ? hero.advertiser.ctaLink
+                      : hero.publisher.ctaLink
+                  }
+                >
                   {role === "advertiser" ? (
                     <>
                       <Target className="w-5 h-5 mr-2 inline" />
@@ -166,12 +168,7 @@ const Hero = () => {
             </div>
           </div>
 
-          {/* Right: Image */}
-          <div className="lg:flex-[0.4] lg:flex lg:mt-0 mt-10 justify-center">
-            <div className="lg:h-[500px] rounded-2xl overflow-hidden">
-              <img src={"/09.png"} className="subtle-float" />
-            </div>
-
+          <div className="hidden lg:block lg:flex-[0.35]">
             {/* WhatsApp floating badge — replaces the 2.5M badge */}
             <button
               onClick={() => setShowWhatsAppModal(true)}
@@ -188,12 +185,12 @@ const Hero = () => {
               </div>
             </button>
 
-            <div className="absolute left-8 -bottom-8 bg-white/6 rounded-full px-3 py-2 text-sm border border-white/8 animate-bounce">
+            {/* <div className="absolute left-8 -bottom-8 bg-white/6 rounded-full px-3 py-2 text-sm border border-white/8 animate-bounce">
               <div className="flex items-center gap-2">
                 <Share2 className="w-4 h-4 text-accent" />
                 <span className="text-sm">Share-ready</span>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

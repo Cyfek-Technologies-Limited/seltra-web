@@ -37,20 +37,20 @@ export function Navbar() {
   ];
 
   return (
-    <nav className="fixed bg-primary top-0 w-full z-50 backdrop-blur-md pr-[30px]">
-      <div className="container mx-auto px-4 h-[71px] flex items-center justify-between">
+    <nav className="fixed top-0 z-50 w-full px-4 pt-4 sm:px-6">
+      <div className="container mx-auto grid h-[72px] max-w-7xl grid-cols-[1fr_auto] items-center justify-between rounded-full border border-white/10 bg-[#07101d]/85 px-5 shadow-xl shadow-black/15 backdrop-blur-xl md:grid-cols-[1fr_auto_1fr] md:px-8">
         {/* Logo */}
-        <Link href="/" className="flex items-end gap-1">
+        <Link href="/" className="flex w-fit items-end gap-1">
           <img
             src="/logo/40.png"
-            alt="Logo"
-            className="w-[170px] -ml-8 h-[60px] object-cover"
+            alt="Seltra"
+            className="h-[57px] w-[89px] object-cover"
           />
           {/* <p className="text-white font-bold text-lg">Seltra</p> */}
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center space-x-8">
+        <div className="hidden items-center justify-center space-x-7 md:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -63,7 +63,7 @@ export function Navbar() {
         </div>
 
         {/* Desktop Buttons */}
-        <div className="hidden md:flex items-center space-x-3">
+        <div className="hidden items-center justify-end space-x-3 md:flex">
           <Button variant="accent" size="sm" asChild>
             <Link href={user ? redirectUrl : "/auth/login"}>
               <LogIn className="w-4 h-4 mr-1" />
@@ -83,7 +83,7 @@ export function Navbar() {
 
         {/* Mobile Menu Button */}
         <button
-          className="md:hidden flex items-center text-white focus:outline-none"
+          className="flex items-center justify-self-end text-white focus:outline-none md:hidden"
           onClick={() => setMenuOpen(!menuOpen)}
         >
           {menuOpen ? (
@@ -102,7 +102,7 @@ export function Navbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.25 }}
-            className="absolute top-[71px] left-0 w-full bg-primary/95 backdrop-blur-xl flex flex-col items-center space-y-5 py-6 shadow-lg md:hidden"
+            className="absolute left-4 right-4 top-[calc(100%+0.75rem)] flex flex-col items-center space-y-5 rounded-3xl border border-white/10 bg-[#07101d]/95 py-6 shadow-xl backdrop-blur-xl sm:left-6 sm:right-6 md:hidden"
           >
             {navLinks.map((link) => (
               <Link
