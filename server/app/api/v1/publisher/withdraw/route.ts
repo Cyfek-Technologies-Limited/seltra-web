@@ -9,10 +9,6 @@ import { prisma } from "../../../../../lib/db.cjs";
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY!;
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
-if (!PAYSTACK_SECRET_KEY) {
-  throw new Error("PAYSTACK_SECRET_KEY is not set in environment variables");
-}
-
 // Helper to get bank code from bank name
 async function getBankCode(bankName: string): Promise<string | null> {
   console.log(`[BACKEND] Fetching bank list to resolve code for: ${bankName}`);
@@ -106,6 +102,14 @@ async function createRecipient(account: any): Promise<string | null> {
 }
 
 export async function POST(req: NextRequest) {
+  if (!PAYSTACK_SECRET_KEY) {
+    console.error("PAYSTACK_SECRET_KEY is not set in environment variables");
+    return NextResponse.json(
+      { error: "Withdrawals are temporarily unavailable" },
+      { status: 503 }
+    );
+  }
+
   try {
     console.log("[BACKEND] Received withdrawal request");
 
