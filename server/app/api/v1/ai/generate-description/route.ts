@@ -3,12 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 const AI_PROVIDER = process.env.AI_PROVIDER || "openai"; // openai, anthropic, etc.
 
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 function generatePrompt(
   campaignName: string,
   shortDescription: string,
