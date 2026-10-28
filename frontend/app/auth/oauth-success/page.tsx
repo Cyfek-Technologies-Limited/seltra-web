@@ -2,12 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -50,7 +45,9 @@ function OAuthSuccessContent() {
           if (user.username) {
             sessionStorage.setItem("google_onboarding_username", user.username);
           }
-          setMessage("Signed in with Google. Let's finish setting up your account...");
+          setMessage(
+            "Signed in with Google. Let's finish setting up your account..."
+          );
           router.replace("/auth/onboarding?flow=google");
           return;
         }
@@ -71,6 +68,7 @@ function OAuthSuccessContent() {
         setMessage(
           error instanceof Error ? error.message : "Google sign-in failed."
         );
+        console.log(error);
       });
   }, [searchParams, exchangeGoogleCode, router]);
 
