@@ -7,6 +7,7 @@ const allowedOrigins = new Set(
     "https://seltra.app",
     "https://www.seltra.app",
     "https://seltra-web.vercel.app",
+    "https://seltra-web-iota.vercel.app",
     "https://adhive-frontend.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
