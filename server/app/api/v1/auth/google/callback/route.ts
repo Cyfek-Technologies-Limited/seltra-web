@@ -79,18 +79,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    stage = "find-user";
+    // 1. Find user by Google ID
+    stage = "find-user-by-google-id";
+
     let user = await prisma.user.findUnique({
       where: { googleId: profile.sub },
     });
 
     if (!user) {
+      // 2. Find an existing account by email
+      stage = "find-user-by-email";
+
       const existingByEmail = await prisma.user.findFirst({
-        where: { email: { equals: profile.email, mode: "insensitive" } },
+        where: {
+          email: {
+            equals: profile.email,
+            mode: "insensitive",
+          },
+        },
       });
 
       if (existingByEmail) {
-        // Same verified email: link Google to the existing account.
+        // 3. Link Google to the existing account
+        stage = "link-google-account";
+
         user = await prisma.user.update({
           where: { id: existingByEmail.id },
           data: {
@@ -100,6 +112,9 @@ export async function GET(request: NextRequest) {
           },
         });
       } else {
+        // 4. Create a new account
+        stage = "create-user";
+
         user = await prisma.user.create({
           data: {
             email: profile.email.toLowerCase(),
