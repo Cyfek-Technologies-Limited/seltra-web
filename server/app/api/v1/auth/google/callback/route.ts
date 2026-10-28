@@ -21,10 +21,10 @@ function redirectToFrontend(params: Record<string, string>) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
-  console.info("[Google OAuth] Callback received", {
+  console.log("[Google OAuth] Callback reached", {
     hasCode: Boolean(searchParams.get("code")),
     hasState: Boolean(searchParams.get("state")),
-    providerError: searchParams.get("error") ?? null,
+    hasError: Boolean(searchParams.get("error")),
   });
 
   let stage = "start";
