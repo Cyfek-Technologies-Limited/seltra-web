@@ -117,22 +117,24 @@ export async function GET(request: NextRequest) {
     stage = "create-exchange-code";
     const exchangeCode = await createGoogleExchangeCode(user.id);
     return redirectToFrontend({ code: exchangeCode });
-  } catch (error) {
+  } catch (error: unknown) {
     const details = error as {
       name?: string;
       message?: string;
       code?: string;
-      response?: { data?: unknown };
     };
+
     console.error("[Google OAuth] Callback failed", {
       stage,
       name: details?.name,
       code: details?.code,
       message: details?.message,
-      providerResponse: details?.response?.data,
     });
+
+    // Temporary diagnostic: identify the stage without exposing
+    // internal error messages or sensitive authentication data.
     return redirectToFrontend({
-      error: "Google sign-in failed. Please try again.",
+      error: `Google sign-in failed at stage: ${stage}`,
     });
   }
 }
