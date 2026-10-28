@@ -68,7 +68,7 @@ function OAuthSuccessContent() {
         setMessage(
           error instanceof Error ? error.message : "Google sign-in failed."
         );
-        console.log(error);
+        console.log("error signing in:", error);
       });
   }, [searchParams, exchangeGoogleCode, router]);
 
