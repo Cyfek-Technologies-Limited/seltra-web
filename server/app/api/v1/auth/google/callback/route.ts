@@ -20,6 +20,13 @@ function redirectToFrontend(params: Record<string, string>) {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+
+  console.info("[Google OAuth] Callback received", {
+    hasCode: Boolean(searchParams.get("code")),
+    hasState: Boolean(searchParams.get("state")),
+    providerError: searchParams.get("error") ?? null,
+  });
+
   let stage = "start";
 
   if (searchParams.get("error")) {
@@ -41,7 +48,9 @@ export async function GET(request: NextRequest) {
     stage = "read-code";
     const code = searchParams.get("code");
     if (!code) {
-      return redirectToFrontend({ error: "Missing Google authorization code." });
+      return redirectToFrontend({
+        error: "Missing Google authorization code.",
+      });
     }
 
     stage = "exchange-code";
@@ -52,7 +61,9 @@ export async function GET(request: NextRequest) {
     );
     const { tokens } = await client.getToken(code);
     if (!tokens.id_token) {
-      return redirectToFrontend({ error: "Google did not return an identity." });
+      return redirectToFrontend({
+        error: "Google did not return an identity.",
+      });
     }
 
     stage = "verify-id-token";
