@@ -27,6 +27,8 @@ function OAuthSuccessContent() {
     const code = searchParams.get("code");
     const oauthError = searchParams.get("error");
 
+    console.log("code:", code);
+
     if (oauthError || !code) {
       setStatus("error");
       setMessage(
@@ -68,7 +70,7 @@ function OAuthSuccessContent() {
         setMessage(
           error instanceof Error
             ? error.message
-            : `Google sign-in failed: ${error}`
+            : `Google sign-in did not work: ${error}`
         );
         console.log("error signing in:", error);
       });
