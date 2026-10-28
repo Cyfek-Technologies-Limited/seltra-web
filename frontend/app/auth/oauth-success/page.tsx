@@ -39,6 +39,12 @@ function OAuthSuccessContent() {
       return;
     }
 
+    if (!code) {
+      setStatus("error");
+      setMessage("Missing sign-in code. Please try again.");
+      return;
+    }
+
     exchangeGoogleCode(code)
       .then(({ user, needsOnboarding }) => {
         setStatus("success");
