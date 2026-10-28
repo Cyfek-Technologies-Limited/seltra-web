@@ -20,23 +20,31 @@ function redirectToFrontend(params: Record<string, string>) {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  let stage = "start";
 
   if (searchParams.get("error")) {
+    console.warn("[Google OAuth] Provider returned an error", {
+      error: searchParams.get("error"),
+      errorDescription: searchParams.get("error_description"),
+    });
     return redirectToFrontend({ error: "Google sign-in was cancelled." });
   }
 
   try {
+    stage = "verify-state";
     if (!(await verifyGoogleState(searchParams.get("state")))) {
       return redirectToFrontend({
         error: "Sign-in session expired. Please try again.",
       });
     }
 
+    stage = "read-code";
     const code = searchParams.get("code");
     if (!code) {
       return redirectToFrontend({ error: "Missing Google authorization code." });
     }
 
+    stage = "exchange-code";
     const client = new OAuth2Client(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -47,6 +55,7 @@ export async function GET(request: NextRequest) {
       return redirectToFrontend({ error: "Google did not return an identity." });
     }
 
+    stage = "verify-id-token";
     const ticket = await client.verifyIdToken({
       idToken: tokens.id_token,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -59,6 +68,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    stage = "find-user";
     let user = await prisma.user.findUnique({
       where: { googleId: profile.sub },
     });
@@ -93,10 +103,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    stage = "create-exchange-code";
     const exchangeCode = await createGoogleExchangeCode(user.id);
     return redirectToFrontend({ code: exchangeCode });
   } catch (error) {
-    console.error("Google callback error:", error);
+    const details = error as {
+      name?: string;
+      message?: string;
+      code?: string;
+      response?: { data?: unknown };
+    };
+    console.error("[Google OAuth] Callback failed", {
+      stage,
+      name: details?.name,
+      code: details?.code,
+      message: details?.message,
+      providerResponse: details?.response?.data,
+    });
     return redirectToFrontend({
       error: "Google sign-in failed. Please try again.",
     });

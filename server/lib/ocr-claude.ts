@@ -1,9 +1,13 @@
 // lib/ocr-claude.ts
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+let anthropicClient: Anthropic | null = null;
+function getClient(): Anthropic {
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return anthropicClient;
+}
 
 export interface ScreenshotAnalysis {
   proofCodeFound: boolean;
@@ -79,7 +83,7 @@ Respond ONLY with a JSON object, no other text:
   "reasoning": "brief explanation of what you found"
 }`;
 
-  const response = await client.messages.create({
+  const response = await getClient().messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 300,
     messages: [

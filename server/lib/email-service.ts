@@ -2,7 +2,19 @@ import { Resend } from "resend";
 import { prisma } from "./db.cjs";
 import { emailQueue } from "./queue-service";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Instantiated lazily so importing this module (e.g. during `next build`
+// page data collection) doesn't throw when RESEND_API_KEY isn't set.
+let resendClient: Resend | null = null;
+function getResend(): Resend {
+  if (!resendClient) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error("RESEND_API_KEY environment variable is not set");
+    }
+    resendClient = new Resend(apiKey);
+  }
+  return resendClient;
+}
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // General email sending function
@@ -11,7 +23,7 @@ export async function sendEmail(email: string, subject: string, html: string) {
     console.log("📧 SENDING EMAIL TO:", email);
     console.log("📝 SUBJECT:", subject);
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: "Seltra <admin@seltra.app>",
       to: [email],
       subject: subject,
@@ -443,7 +455,7 @@ export async function sendBulkEmails(
     );
 
     try {
-      const { data, error } = await resend.emails.send({
+      const { data, error } = await getResend().emails.send({
         from: "campaigns@seltra.app",
         to: batch,
         subject: subject,
@@ -461,7 +473,7 @@ export async function sendBulkEmails(
           await new Promise((resolve) => setTimeout(resolve, 5000));
 
           // Simple retry once
-          const retryResult = await resend.emails.send({
+          const retryResult = await getResend().emails.send({
             from: "campaigns@seltra.app",
             to: batch,
             subject: subject,
@@ -596,7 +608,7 @@ export async function sendPromotionalToAdvertisers(emails: string[]) {
       "Upload your business flyer or video, and thousands of real Nigerians share it on their personal social media accounts. This isn't just advertising; it's digital word-of-mouth that builds instant trust and drives genuine sales.";
 
     // Using Resend's batch sending
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: "Seltra <support@seltra.app>",
       to: emails,
       subject: "Boost Online Sales",
@@ -764,7 +776,7 @@ export async function sendPromotionalToPublishers(emails: string[]) {
       "Start earning money by sharing campaigns on your social media! Join thousands of publishers who are making real income by posting content they believe in.";
 
     // Using Resend's batch sending
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: "Seltra <opportunities@seltra.app>",
       to: emails,
       subject:
