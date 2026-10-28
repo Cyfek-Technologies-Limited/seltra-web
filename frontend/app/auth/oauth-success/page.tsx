@@ -66,7 +66,9 @@ function OAuthSuccessContent() {
       .catch((error: unknown) => {
         setStatus("error");
         setMessage(
-          error instanceof Error ? error.message : "Google sign-in failed."
+          error instanceof Error
+            ? error.message
+            : `Google sign-in failed: ${error}`
         );
         console.log("error signing in:", error);
       });
