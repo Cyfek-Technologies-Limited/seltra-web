@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 
 const allowedOrigins = new Set(
   [
+    "http://localhost:3001",
+    "https://seltra.cyfek.com",
     "https://seltra.app",
     "https://www.seltra.app",
     "https://seltra-web.vercel.app",

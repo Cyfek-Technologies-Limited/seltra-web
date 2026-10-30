@@ -1,6 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { useEffect, useState } from "react";
+import type { ClipboardEvent, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { CheckCircle2, Loader2, Mail, RefreshCw } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -9,155 +13,161 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Mail, Loader2, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { VerifyPhoneModal } from "@/components/VerifyPhoneModal";
+
+type VerificationStatus = "idle" | "loading" | "success" | "error";
 
 export default function VerifyEmailPage() {
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-  const email = searchParams.get("email");
-
-  const [status, setStatus] = useState<
-    "loading" | "success" | "error" | "waiting"
-  >(token && email ? "loading" : "waiting");
+  const searchEmail = searchParams.get("email") || "";
+  const [email, setEmail] = useState(searchEmail);
+  const [codeDigits, setCodeDigits] = useState(["", "", "", "", ""]);
+  const code = codeDigits.join("");
+  const [status, setStatus] = useState<VerificationStatus>("idle");
   const [message, setMessage] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCount, setResendCount] = useState(0);
-  const [openVerify, setOpenVerify] = useState(false);
-  const [isLogin, setIsLogin] = useState(false);
 
   useEffect(() => {
-    if (token && email) {
-      completeVerification(token, email);
+    if (searchEmail) {
+      setEmail(searchEmail);
+    } else {
+      const pendingEmail = localStorage.getItem("pending_email");
+      if (pendingEmail) setEmail(pendingEmail);
     }
-  }, [token, email]);
+  }, [searchEmail]);
 
-  const completeVerification = async (token: string, email: string) => {
+  const completeVerification = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!email || !/^\d{5}$/.test(code)) {
+      setStatus("error");
+      setMessage("Enter the 5-digit code sent to your email.");
+      return;
+    }
+
+    setStatus("loading");
+    setMessage("");
     try {
-      setStatus("loading");
-      setMessage("Verifying your email...");
-
       const response = await fetch(`${BASE_URL}/auth/verify-complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: decodeURIComponent(email),
-          token,
-        }),
+        body: JSON.stringify({ email, code }),
       });
-
       const data = await response.json();
 
-      if (response.ok) {
-        setStatus("success");
-        setMessage(
-          data.message ||
-            "Email verified successfully! Redirecting to dashboard..."
-        );
-
-        // ✅ Store token in localStorage for iPhone compatibility
-        if (data.token) {
-          localStorage.setItem("auth-token", data.token);
-        }
-
-        setTimeout(() => {
-          if (data.needsOnboarding || !data.data?.role) {
-            router.push("/auth/onboarding?flow=email");
-          } else if (data.data?.role === "publisher") {
-            // router.push("/dashboard/publisher");
-            router.push("/auth/onboarding");
-          } else if (data.data?.role === "advertiser") {
-            router.push("/dashboard/advertiser");
-          }
-        }, 1500);
-
-        // setTimeout(() => {
-        //   setOpenVerify(true);
-        // }, 1500);
-
-        // setTimeout(() => {
-        //   router.push("/auth/onboarding");
-        // }, 1500);
-      } else {
+      if (!response.ok) {
         setStatus("error");
-        setMessage(
-          data.error ||
-            "Verification failed. You can request a new verification email."
-        );
+        setMessage(data.error || "That code is incorrect. Check it and try again.");
+        return;
       }
+
+      setStatus("success");
+      setMessage(data.message || "Email verified! Taking you to onboarding…");
+      if (data.token) localStorage.setItem("auth-token", data.token);
+
+      window.setTimeout(() => {
+        if (data.needsOnboarding || !data.data?.role) {
+          router.push("/auth/onboarding?flow=email");
+        } else if (data.data?.role === "publisher") {
+          router.push("/auth/onboarding");
+        } else if (data.data?.role === "advertiser") {
+          router.push("/dashboard/advertiser");
+        }
+      }, 1200);
     } catch (error) {
       console.error("Verification error:", error);
       setStatus("error");
-      setMessage("Network error. Please check your connection and try again.");
+      setMessage("Could not verify the code. Check your connection and try again.");
     }
   };
 
   const handleResendVerification = async () => {
+    if (!email) {
+      setStatus("error");
+      setMessage("Email not found. Please sign up again.");
+      return;
+    }
+
+    setResendLoading(true);
+    setMessage("");
     try {
-      setResendLoading(true);
-
-      // Get email from URL or use a stored one
-      const userEmail = email || localStorage.getItem("pending_email");
-
-      if (!userEmail) {
-        setMessage("Email not found. Please sign up again.");
-        return;
-      }
-
       const response = await fetch(`${BASE_URL}/auth/resend-verification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail }),
+        body: JSON.stringify({ email }),
       });
-
       const data = await response.json();
 
-      if (response.ok) {
-        setMessage("✅ New verification email sent! Check your inbox.");
-        setResendCount((prev) => prev + 1);
-
-        // Store email for future resend attempts
-        localStorage.setItem("pending_email", userEmail);
-      } else {
-        setMessage(`❌ ${data.error || "Failed to resend email"}`);
+      if (!response.ok) {
+        setStatus("error");
+        setMessage(data.error || "Could not send another code. Please try again.");
+        return;
       }
-    } catch (error) {
-      setMessage("❌ Network error. Please try again.");
+
+      setCodeDigits(["", "", "", "", ""]);
+      setStatus("idle");
+      setMessage("A new verification code was sent. Check your inbox.");
+      setResendCount((current) => current + 1);
+      localStorage.setItem("pending_email", email);
+    } catch {
+      setStatus("error");
+      setMessage("Could not send a new code. Check your connection and try again.");
     } finally {
       setResendLoading(false);
     }
   };
 
+  const updateCodeDigit = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const nextCode = [...codeDigits];
+    nextCode[index] = digit || "";
+    setCodeDigits(nextCode);
+    if (status === "error") {
+      setStatus("idle");
+      setMessage("");
+    }
+    if (digit && index < 4) focusCodeInput(index + 1);
+  };
+
+  const pasteCode = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    const digits = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 5);
+    setCodeDigits([...digits.split(""), ...Array(5 - digits.length).fill("")]);
+    if (status === "error") {
+      setStatus("idle");
+      setMessage("");
+    }
+    focusCodeInput(Math.min(digits.length, 4));
+  };
+
+  const focusCodeInput = (index: number) => {
+    document.getElementById(`verification-digit-${index}`)?.focus();
+  };
+
+  const isBusy = status === "loading" || status === "success";
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
+          <div className="mb-4 flex justify-center">
             {status === "success" ? (
               <CheckCircle2 className="h-12 w-12 text-green-600" />
-            ) : status === "error" ? (
-              <XCircle className="h-12 w-12 text-red-600" />
-            ) : status === "loading" ? (
-              <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
+            ) : status === "loading" || resendLoading ? (
+              <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
             ) : (
               <Mail className="h-12 w-12 text-blue-600" />
             )}
           </div>
           <CardTitle className="text-2xl">
-            {status === "success"
-              ? "Email Verified!"
-              : status === "error"
-              ? "Verification Failed"
-              : status === "loading"
-              ? "Verifying Email..."
-              : "Verify Your Email"}
+            {status === "success" ? "Email verified" : "Verify your email"}
           </CardTitle>
           <CardDescription>
-            {status === "waiting" && "Check your email for a verification link"}
+            Enter the 5-digit code we sent to {email || "your email address"}.
           </CardDescription>
         </CardHeader>
 
@@ -168,102 +178,77 @@ export default function VerifyEmailPage() {
             </Alert>
           )}
 
-          {status === "waiting" && (
-            <div className="text-center space-y-4">
-              <p className="text-sm text-muted-foreground">
-                We've sent a verification link to your email address. Please
-                check your inbox and click the link to verify your account.
-              </p>
+          {status !== "success" && (
+            <>
+              <form onSubmit={completeVerification} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Verification code</Label>
+                  <div className="flex justify-center gap-2.5 sm:gap-3" role="group" aria-label="5-digit verification code">
+                    {Array.from({ length: 5 }, (_, index) => (
+                      <Input
+                        key={index}
+                        id={`verification-digit-${index}`}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete={index === 0 ? "one-time-code" : "off"}
+                        aria-label={`Verification digit ${index + 1}`}
+                        value={codeDigits[index]}
+                        onChange={(event) => updateCodeDigit(index, event.target.value)}
+                        onPaste={pasteCode}
+                        onKeyDown={(event) => {
+                          if (event.key === "Backspace" && !codeDigits[index] && index > 0) {
+                            focusCodeInput(index - 1);
+                          } else if (event.key === "ArrowLeft" && index > 0) {
+                            focusCodeInput(index - 1);
+                          } else if (event.key === "ArrowRight" && index < 4) {
+                            focusCodeInput(index + 1);
+                          }
+                        }}
+                        disabled={isBusy || !email}
+                        required
+                        maxLength={1}
+                        pattern="[0-9]"
+                        className="h-11 w-11 rounded-md border-[1px] border-black/30 bg-white p-0 text-center text-lg text-slate-900 shadow-none focus-visible:border-blue-500 focus-visible:ring-1 focus-visible:ring-blue-500 sm:h-12 sm:w-12"
+                      />
+                    ))}
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={isBusy || code.length !== 5 || !email}>
+                  {status === "loading" ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Checking code…</>
+                  ) : (
+                    "Verify email"
+                  )}
+                </Button>
+              </form>
 
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  Didn't receive the email? Check spam folder or resend.
+              <div className="space-y-3 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Didn&apos;t get the email? Check your spam folder or request another code.
                 </p>
-
                 <Button
+                  type="button"
                   onClick={handleResendVerification}
-                  disabled={resendLoading || resendCount >= 3}
+                  disabled={resendLoading || resendCount >= 3 || !email}
                   variant="outline"
                   className="w-full"
                 >
                   {resendLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Sending...
-                    </>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending code…</>
                   ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Resend Verification Email
-                      {resendCount > 0 && ` (${resendCount})`}
-                    </>
+                    <><RefreshCw className="mr-2 h-4 w-4" />Send another code{resendCount > 0 ? ` (${resendCount})` : ""}</>
                   )}
                 </Button>
-
                 {resendCount >= 3 && (
-                  <p className="text-xs text-amber-600">
-                    Maximum resend attempts reached. Please wait or contact
-                    support.
+                  <p className="text-xs text-amber-700">
+                    You&apos;ve reached the resend limit. Please try again later.
                   </p>
                 )}
-
                 <Button asChild variant="ghost" className="w-full">
                   <Link href="/auth/login">Back to Login</Link>
                 </Button>
               </div>
-            </div>
-          )}
-
-          {status === "error" && (
-            <div className="text-center space-y-4">
-              <div className="space-y-3">
-                <Button
-                  onClick={handleResendVerification}
-                  disabled={resendLoading}
-                  className="w-full"
-                >
-                  {resendLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Sending New Verification Email...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Send New Verification Email
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  onClick={() => router.push("/auth/signup")}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Try Signing Up Again
-                </Button>
-
-                <Button asChild variant="ghost" className="w-full">
-                  <Link href="/">Back to Home</Link>
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* {isLogin && (
-            <div className="text-center">
-              <Button asChild className="w-full">
-                <Link href={"/auth/login"}>Login</Link>
-              </Button>
-            </div>
-          )} */}
-
-          {status === "success" && (
-            <VerifyPhoneModal
-              open={openVerify}
-              onClose={() => setIsLogin(true)}
-              phone={""}
-            />
+            </>
           )}
         </CardContent>
       </Card>

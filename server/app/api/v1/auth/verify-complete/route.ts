@@ -4,33 +4,82 @@ import { prisma } from "../../../../../lib/db.cjs";
 import { createAuthToken } from "../../../../../lib/user";
 import { triggerWelcomeNotification } from "../../../../../lib/notification-triggers";
 import { ReferralService } from "../../../../../lib/referral-service";
+import { rateLimit } from "../../../../../lib/rate-limit";
+import { hashVerificationCode } from "../../../../../lib/verification-code";
 
 const verifyCompleteSchema = z.object({
   email: z.string().email(),
-  token: z.string(),
+  code: z.string().regex(/^\d{5}$/),
 });
+
+function applyVerificationCors(response: NextResponse, request: NextRequest) {
+  const origin = request.headers.get("origin");
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "https://seltra.cyfek.com",
+    "https://seltra.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+  ]
+    .filter(Boolean)
+    .map((value) => value!.replace(/\/+$/, ""));
+
+  if (origin && allowedOrigins.includes(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
+  }
+  response.headers.append("Vary", "Origin");
+  return response;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const limit = rateLimit(req, 5, 60_000);
+    if (!limit.success) {
+      return applyVerificationCors(
+        NextResponse.json(
+          { error: "Too many code attempts. Please wait a minute and try again." },
+          { status: 429 }
+        ),
+        req
+      );
+    }
+
     const body = await req.json();
-    const { email, token } = verifyCompleteSchema.parse(body);
+    const parsed = verifyCompleteSchema.safeParse(body);
+    if (!parsed.success) {
+      return applyVerificationCors(
+        NextResponse.json(
+          { error: "Enter a valid email and 5-digit verification code." },
+          { status: 400 }
+        ),
+        req
+      );
+    }
+    const { email, code } = parsed.data;
 
     console.log("🚨 VERIFICATION ATTEMPT:", email);
 
-    // Find pending registration by email AND token
+    // The short code is stored as a hash, never in plain text.
     const pendingRegistration = await prisma.pendingRegistration.findFirst({
       where: {
         email: email,
-        token: token,
+        token: hashVerificationCode(code, email),
         expiresAt: { gt: new Date() },
       },
     });
 
     if (!pendingRegistration) {
-      console.log("❌ Invalid or expired verification:", { email, token });
-      return NextResponse.json(
-        { error: "Invalid or expired verification token" },
-        { status: 400 }
+      console.log("Incorrect or expired verification code:", email);
+      return applyVerificationCors(
+        NextResponse.json(
+          {
+            error:
+              "That code is incorrect or has expired. Check the code and try again, or request a new one.",
+          },
+          { status: 400 }
+        ),
+        req
       );
     }
 
@@ -43,9 +92,9 @@ export async function POST(req: NextRequest) {
           where: { email: email },
         })
         .catch(() => {}); // Ignore errors if record already gone
-      return NextResponse.json(
-        { error: "User already exists" },
-        { status: 409 }
+      return applyVerificationCors(
+        NextResponse.json({ error: "User already exists" }, { status: 409 }),
+        req
       );
     }
 
@@ -156,11 +205,9 @@ export async function POST(req: NextRequest) {
       });
 
     // Add CORS headers for cross-domain
-    response.headers.set("Access-Control-Allow-Origin", "https://seltra.app");
-    response.headers.set("Access-Control-Allow-Credentials", "true");
 
     console.log("✅ USER CREATED SUCCESSFULLY:", newUser);
-    return response;
+    return applyVerificationCors(response, req);
   } catch (error) {
     console.error("🔴 VERIFICATION ERROR:", error);
 
@@ -171,13 +218,12 @@ export async function POST(req: NextRequest) {
       console.error("Error stack:", error.stack);
     }
 
-    return NextResponse.json(
-      {
-        error: "Verification Failed",
-        verifyErrorName: error.name,
-        verifyErrormessage: error.message,
-      },
-      { status: 500 }
+    return applyVerificationCors(
+      NextResponse.json(
+        { error: "Verification failed. Please try again." },
+        { status: 500 }
+      ),
+      req
     );
   }
 }
@@ -185,8 +231,7 @@ export async function POST(req: NextRequest) {
 // Add OPTIONS handler for CORS
 export async function OPTIONS(req: NextRequest) {
   const response = new NextResponse(null, { status: 200 });
-  response.headers.set("Access-Control-Allow-Origin", "https://seltra.app");
-  response.headers.set("Access-Control-Allow-Credentials", "true");
+  applyVerificationCors(response, req);
   response.headers.set(
     "Access-Control-Allow-Methods",
     "GET, POST, PUT, DELETE, OPTIONS"

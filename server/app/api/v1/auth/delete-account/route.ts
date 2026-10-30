@@ -111,7 +111,7 @@ export async function DELETE(request: NextRequest) {
       // Remaining relations (publisher, account, earnings, referrals,
       // notifications, reset tokens, advertiser profile) cascade from here.
       await tx.user.delete({ where: { id: userId } });
-    });
+    }, { maxWait: 10_000, timeout: 30_000 });
 
     return clearAuthCookies(
       NextResponse.json({ status: "200", msg: "Account deleted" }, { status: 200 })

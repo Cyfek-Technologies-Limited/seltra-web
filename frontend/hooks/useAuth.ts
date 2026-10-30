@@ -273,7 +273,7 @@ export function useAuth() {
 
         toast({
           title: "Verify Your Email",
-          description: "Check your email for verification link.",
+          description: "Check your email for the 5-digit verification code.",
         });
 
         router.push(

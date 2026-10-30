@@ -165,15 +165,15 @@ export default function AdvertiserProfilePage() {
   };
 
   if (loading || userLoading) {
-    return <div className="p-8 text-white/70">Loading profile…</div>;
+    return <div className="p-8 text-slate-600">Loading profile…</div>;
   }
 
   if (!user?.isAdvertiser) {
-    return <div className="p-8 text-white/70">Advertiser access required.</div>;
+    return <div className="p-8 text-slate-600">Advertiser access required.</div>;
   }
 
-  const inputClass = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-accent";
-  const labelClass = "mb-1.5 block text-sm font-medium text-white/80";
+  const inputClass = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100";
+  const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
   const budgetOptions = [
     ...(form.monthlyBudget && !MONTHLY_BUDGETS.includes(form.monthlyBudget)
       ? [form.monthlyBudget]
@@ -182,14 +182,14 @@ export default function AdvertiserProfilePage() {
   ];
 
   return (
-    <main className="mx-auto max-w-4xl p-4 text-white sm:p-8">
+    <main className="mx-auto max-w-4xl p-4 text-slate-900 sm:p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold">Your profile</h1>
-        <p className="mt-1 text-sm text-white/60">Manage your account and business details.</p>
+        <p className="mt-1 text-sm text-slate-600">Manage your account and business details.</p>
       </div>
 
       <form onSubmit={saveProfile} className="space-y-6">
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <h2 className="mb-5 flex items-center gap-2 font-semibold"><UserRound size={18} /> Personal information</h2>
           <div className="grid gap-5 sm:grid-cols-2">
             <label>
@@ -202,34 +202,34 @@ export default function AdvertiserProfilePage() {
             </label>
             <div>
               <span className={labelClass}>Email address</span>
-              <div className={`${inputClass} flex items-center gap-2 text-white/60`}><Mail size={16} />{profile?.email || user.email}</div>
-              <p className="mt-1 text-xs text-white/45">Email address cannot be changed.</p>
+              <div className={`${inputClass} flex items-center gap-2 bg-slate-50 text-slate-500`}><Mail size={16} />{profile?.email || user.email}</div>
+              <p className="mt-1 text-xs text-slate-500">Email address cannot be changed.</p>
             </div>
             <div>
               <span className={labelClass}>Member since</span>
-              <div className={`${inputClass} flex items-center gap-2 text-white/60`}><CalendarDays size={16} />{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}</div>
+              <div className={`${inputClass} flex items-center gap-2 bg-slate-50 text-slate-500`}><CalendarDays size={16} />{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}</div>
             </div>
           </div>
         </section>
 
         {profile?.advertiserProfile ? (
-          <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <h2 className="mb-5 font-semibold">Business and campaign preferences</h2>
             <div className="grid gap-5 sm:grid-cols-2">
               <label><span className={labelClass}>Company name</span><input required className={inputClass} value={form.companyName} onChange={(e) => updateField("companyName", e.target.value)} maxLength={100} /></label>
               <label><span className={labelClass}>Industry</span><input required className={inputClass} value={form.industry} onChange={(e) => updateField("industry", e.target.value)} maxLength={100} /></label>
-              <label className="sm:col-span-2"><span className={labelClass}>Target audience <span className="font-normal text-white/45">(separate with commas)</span></span><input className={inputClass} value={form.targetAudience} onChange={(e) => updateField("targetAudience", e.target.value)} /></label>
-              <label><span className={labelClass}>Campaign goal</span><select required className={inputClass} value={form.campaignGoal} onChange={(e) => updateField("campaignGoal", e.target.value)}><option value="">Select a goal</option>{CAMPAIGN_GOALS.map((goal) => <option key={goal} value={goal} className="bg-slate-900">{goal}</option>)}</select></label>
-              <label><span className={labelClass}>Monthly budget</span><select required className={inputClass} value={form.monthlyBudget} onChange={(e) => updateField("monthlyBudget", e.target.value)}><option value="">Select a budget</option>{budgetOptions.map((budget) => <option key={budget} value={budget} className="bg-slate-900">{budget}</option>)}</select></label>
+              <label className="sm:col-span-2"><span className={labelClass}>Target audience <span className="font-normal text-slate-500">(separate with commas)</span></span><input className={inputClass} value={form.targetAudience} onChange={(e) => updateField("targetAudience", e.target.value)} /></label>
+              <label><span className={labelClass}>Campaign goal</span><select required className={inputClass} value={form.campaignGoal} onChange={(e) => updateField("campaignGoal", e.target.value)}><option value="">Select a goal</option>{CAMPAIGN_GOALS.map((goal) => <option key={goal} value={goal} className="bg-white text-slate-900">{goal}</option>)}</select></label>
+              <label><span className={labelClass}>Monthly budget</span><select required className={inputClass} value={form.monthlyBudget} onChange={(e) => updateField("monthlyBudget", e.target.value)}><option value="">Select a budget</option>{budgetOptions.map((budget) => <option key={budget} value={budget} className="bg-white text-slate-900">{budget}</option>)}</select></label>
               <label><span className={labelClass}>Target locations</span><input className={inputClass} value={form.targetLocations} onChange={(e) => updateField("targetLocations", e.target.value)} maxLength={200} /></label>
               <label><span className={labelClass}>Audience notes</span><input className={inputClass} value={form.audienceNotes} onChange={(e) => updateField("audienceNotes", e.target.value)} maxLength={500} /></label>
             </div>
           </section>
         ) : (
-          <p className="rounded-lg border border-white/10 p-4 text-sm text-white/60">Business details are not available yet. Complete advertiser onboarding to add them here.</p>
+          <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">Business details are not available yet. Complete advertiser onboarding to add them here.</p>
         )}
 
-        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 font-medium text-primary disabled:opacity-60">
+        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-5 py-2.5 font-medium text-white hover:bg-orange-600 disabled:opacity-60">
           <Save size={17} />{saving ? "Saving…" : "Save changes"}
         </button>
       </form>

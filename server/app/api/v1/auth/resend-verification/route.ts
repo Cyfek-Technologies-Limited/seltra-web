@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import crypto from "crypto";
 import { sendVerificationEmail } from "../../../../../lib/email-service";
 import { prisma } from "../../../../../lib/db.cjs";
+import { canResendEmail } from "../../../../../lib/rate-limit";
+import {
+  generateVerificationCode,
+  hashVerificationCode,
+  VERIFICATION_CODE_TTL_MS,
+} from "../../../../../lib/verification-code";
 
 const resendSchema = z.object({
   email: z.string().email(),
@@ -38,15 +43,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate new token and update expiry
-    const newToken = crypto.randomBytes(32).toString("hex");
-    const newExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    if (!canResendEmail(email)) {
+      return NextResponse.json(
+        { error: "You have requested too many codes. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    const code = generateVerificationCode();
+    const codeHash = hashVerificationCode(code, email);
+    const newExpiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
 
     // Update pending registration with new token
     await prisma.pendingRegistration.update({
       where: { email },
       data: {
-        token: newToken,
+        token: codeHash,
         expiresAt: newExpiresAt,
       },
     });
@@ -54,7 +66,7 @@ export async function POST(req: NextRequest) {
     // Send new verification email
     const emailSent = await sendVerificationEmail(
       email,
-      newToken,
+      code,
       pendingRegistration.username
     );
 
@@ -69,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       status: 200,
-      message: "Verification email sent successfully!",
+      message: "A new verification code was sent to your email.",
       email: email,
     });
   } catch (error) {

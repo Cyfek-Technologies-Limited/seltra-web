@@ -24,7 +24,7 @@ export async function sendEmail(email: string, subject: string, html: string) {
     console.log("📝 SUBJECT:", subject);
 
     const { data, error } = await getResend().emails.send({
-      from: "Seltra <admin@seltra.app>",
+      from: "Seltra <admin@seltra.cyfek.com>",
       to: [email],
       subject: subject,
       html: html,
@@ -46,13 +46,9 @@ export async function sendEmail(email: string, subject: string, html: string) {
 // Specific function for verification emails
 export async function sendVerificationEmail(
   email: string,
-  token: string,
+  code: string,
   username: string
 ) {
-  const verificationUrl = `${FRONTEND_URL}/auth/verify-email?token=${token}&email=${encodeURIComponent(
-    email
-  )}`;
-
   const html = `
     <!DOCTYPE html>
     <html>
@@ -68,18 +64,9 @@ export async function sendVerificationEmail(
         <div class="container">
             <h1>Verify Your Email</h1>
             <p>Hello <strong>${username}</strong>,</p>
-            <p>Welcome to Seltra! Please verify your email address to activate your account.</p>
-            
-            <p style="text-align: center; margin: 30px 0;">
-                <a href="${verificationUrl}" class="button">Verify Email Address</a>
-            </p>
-            
-            <p>Or copy and paste this link in your browser:</p>
-            <p style="background: #f5f5f5; padding: 10px; border-radius: 5px; word-break: break-all;">
-                ${verificationUrl}
-            </p>
-            
-            <p>This verification link will expire in 24 hours.</p>
+            <p>Welcome to Seltra! Enter this code on the sign-up page to verify your email address:</p>
+            <p style="text-align: center; margin: 30px 0; padding: 18px; background: #f5f5f5; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 10px; color: #1f2937;">${code}</p>
+            <p>This code will expire in 10 minutes. If you didn&apos;t request it, you can ignore this email.</p>
             
             <div class="footer">
                 <p>If you didn't create this account, please ignore this email.</p>
@@ -251,7 +238,7 @@ export async function sendWelcomeEmail(
             <p>Welcome to SELTRA! You've successfully joined as a ${role}. We're excited to have you on board.</p>
             
             <p style="text-align: center; margin: 30px 0;">
-                <a href="https://seltra.app/dashboard/${role}" class="button">Go to Dashboard</a>
+                <a href="https://seltra.cyfek.com/dashboard/${role}" class="button">Go to Dashboard</a>
             </p>
             
             <div style="background: #f0f9ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
@@ -271,7 +258,7 @@ export async function sendWelcomeEmail(
             </div>
             
             <div class="footer">
-                <p>Need help? Check out our <a href="https://seltra.app/help">help center</a> or contact support.</p>
+                <p>Need help? Check out our <a href="https://seltra.cyfek.com/help">help center</a> or contact support.</p>
                 <p>Best regards,<br>The SELTRA Team</p>
             </div>
         </div>
@@ -292,7 +279,7 @@ export async function sendPasswordResetEmail(
   token: string,
   username: string
 ) {
-  const resetUrl = `https://seltra.app/auth/reset-password?token=${token}`;
+  const resetUrl = `https://seltra.cyfek.com/auth/reset-password?token=${token}`;
 
   const html = `
     <!DOCTYPE html>
@@ -385,7 +372,7 @@ export async function sendNewCampaignNotification(
             </div>
             
             <p style="text-align: center; margin: 30px 0;">
-                <a href="https://seltra.app/explore" class="button">Accept Campaign</a>
+                <a href="https://seltra.cyfek.com/explore" class="button">Accept Campaign</a>
             </p>
             
             <div style="background: #fef3c7; padding: 15px; border-radius: 6px; margin: 20px 0;">
@@ -456,7 +443,7 @@ export async function sendBulkEmails(
 
     try {
       const { data, error } = await getResend().emails.send({
-        from: "campaigns@seltra.app",
+        from: "campaigns@seltra.cyfek.com",
         to: batch,
         subject: subject,
         html: html,
@@ -474,7 +461,7 @@ export async function sendBulkEmails(
 
           // Simple retry once
           const retryResult = await getResend().emails.send({
-            from: "campaigns@seltra.app",
+            from: "campaigns@seltra.cyfek.com",
             to: batch,
             subject: subject,
             html: html,
@@ -609,7 +596,7 @@ export async function sendPromotionalToAdvertisers(emails: string[]) {
 
     // Using Resend's batch sending
     const { data, error } = await getResend().emails.send({
-      from: "Seltra <support@seltra.app>",
+      from: "Seltra <support@seltra.cyfek.com>",
       to: emails,
       subject: "Boost Online Sales",
       html: `
@@ -707,7 +694,7 @@ export async function sendPromotionalToAdvertisers(emails: string[]) {
                 <div class="cta-section">
                     <h3 style="color: #065f46; margin-bottom: 20px; font-size: 1.4rem;">Ready to Transform Your Marketing?</h3>
                     <p style="color: #065f46; margin-bottom: 25px; font-size: 1.1rem;">Join hundreds of businesses already growing with Seltra</p>
-                    <a href="https://seltra.app/dashboard/advertiser/campaigns/create" class="cta-button">
+                    <a href="https://seltra.cyfek.com/dashboard/advertiser/campaigns/create" class="cta-button">
                         Create Your First Campaign
                     </a>
                     <p style="margin-top: 15px; color: #047857; font-size: 0.9rem;">Takes less than 2 minutes to set up</p>
@@ -717,7 +704,7 @@ export async function sendPromotionalToAdvertisers(emails: string[]) {
             <div class="footer">
                 <p>📍 Made for Nigerian Businesses</p>
                 <p>💌 Questions? Reply to this email - we're here to help!</p>
-                <p><a href="https://seltra.app/unsubscribe">Unsubscribe</a> | <a href="https://seltra.app/privacy">Privacy Policy</a></p>
+                <p><a href="https://seltra.cyfek.com/unsubscribe">Unsubscribe</a> | <a href="https://seltra.cyfek.com/privacy">Privacy Policy</a></p>
                 <p style="margin-top: 20px; opacity: 0.6;">Seltra - Digital Word-of-Mouth Marketing Platform</p>
             </div>
         </div>
@@ -777,7 +764,7 @@ export async function sendPromotionalToPublishers(emails: string[]) {
 
     // Using Resend's batch sending
     const { data, error } = await getResend().emails.send({
-      from: "Seltra <opportunities@seltra.app>",
+      from: "Seltra <opportunities@seltra.cyfek.com>",
       to: emails,
       subject:
         "💰 Start Earning Money on Your Social Media - As a Seltra Publisher",
@@ -911,7 +898,7 @@ export async function sendPromotionalToPublishers(emails: string[]) {
                 <div class="cta-section">
                     <h3 style="color: #1e3a8a; margin-bottom: 20px; font-size: 1.4rem;">Ready to Start Earning?</h3>
                     <p style="color: #1e3a8a; margin-bottom: 25px; font-size: 1.1rem;">Join thousands of publishers already earning with Seltra</p>
-                    <a href="https://seltra.app/explore" class="cta-button">
+                    <a href="https://seltra.cyfek.com/explore" class="cta-button">
                         Browse Available Campaigns
                     </a>
                     <p style="margin-top: 15px; color: #2563eb; font-size: 0.9rem;">Start earning in minutes!</p>
@@ -926,7 +913,7 @@ export async function sendPromotionalToPublishers(emails: string[]) {
             <div class="footer">
                 <p>📍 Perfect for Students, Content Creators, and Social Media Users</p>
                 <p>💌 Questions? Reply to this email - we're here to help!</p>
-                <p><a href="https://seltra.app/unsubscribe">Unsubscribe</a> | <a href="https://seltra.app/privacy">Privacy Policy</a></p>
+                <p><a href="https://seltra.cyfek.com/unsubscribe">Unsubscribe</a> | <a href="https://seltra.cyfek.com/privacy">Privacy Policy</a></p>
                 <p style="margin-top: 20px; opacity: 0.6;">Seltra - Earn Money Sharing Content You Love</p>
             </div>
         </div>

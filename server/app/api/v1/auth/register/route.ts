@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import crypto from "crypto";
 import { prisma } from "../../../../../lib/db.cjs";
 import { hashPassword } from "../../../../../lib";
 import { sendVerificationEmail } from "../../../../../lib/email-service";
+import {
+  generateVerificationCode,
+  hashVerificationCode,
+  VERIFICATION_CODE_TTL_MS,
+} from "../../../../../lib/verification-code";
 
 // New signups send only email + password; role, name and phone are collected
 // during onboarding. The legacy fields stay optional so older clients keep working.
@@ -71,9 +75,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate verification token
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const code = generateVerificationCode();
+    const codeHash = hashVerificationCode(code, email);
+    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
 
     // Hash password for temporary storage
     const hashedPassword = await hashPassword(password);
@@ -86,7 +90,7 @@ export async function POST(req: NextRequest) {
       phone: phone ?? "",
       password: hashedPassword,
       role: inputRole ?? "",
-      token,
+      token: codeHash,
       expiresAt,
     };
 
@@ -103,7 +107,7 @@ export async function POST(req: NextRequest) {
     // Send ACTUAL verification email
     const emailSent = await sendVerificationEmail(
       email,
-      token,
+      code,
       username || "there"
     );
     if (!emailSent) {

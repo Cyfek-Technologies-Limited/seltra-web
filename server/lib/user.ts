@@ -49,7 +49,6 @@ export async function getCurrentUser(
       request.headers.get("authorization")?.replace("Bearer ", "") || // Header first for iPhone reliability
       request.cookies.get("auth-token")?.value;
 
-    console.log("token", token);
     if (!token) {
       throw new Error("No token Provided");
     }
@@ -63,12 +62,9 @@ export async function getCurrentUser(
 }
 
 export async function getFullUser(request: NextRequest) {
-  console.log("fetching token");
   const token =
     request.headers.get("authorization")?.replace("Bearer ", "") ||
     request.cookies.get("auth-token")?.value;
-
-  console.log("fetched token", token);
 
   if (!token) {
     console.log("No token provided");
