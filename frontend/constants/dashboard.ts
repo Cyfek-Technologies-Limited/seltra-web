@@ -30,9 +30,9 @@ export const advertiserNav = [
     route: "/dashboard/advertiser/support",
   },
   {
-    name: "leaderoard",
-    icon: "/dash/phone.svg",
-    route: "/dashboard/advertiser/leaderoard",
+    name: "Profile",
+    icon: "/dash/users.svg",
+    route: "/dashboard/advertiser/profile",
   },
 ];
 
