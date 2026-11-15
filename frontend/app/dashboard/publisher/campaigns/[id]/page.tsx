@@ -69,6 +69,7 @@ export default function CampaignDetailsPage() {
     proofUrls: string[];
     views: number;
     notes?: string;
+    platformEvidence?: { provider: "tiktok" | "instagram"; mediaId: string };
   }) => {
     try {
       const firstProofImage = data.proofImages[0];
@@ -84,7 +85,8 @@ export default function CampaignDetailsPage() {
         data.proofUrls,
         data.views,
         setIsSubmitting,
-        data.notes
+        data.notes,
+        data.platformEvidence
       );
 
       if (success) {

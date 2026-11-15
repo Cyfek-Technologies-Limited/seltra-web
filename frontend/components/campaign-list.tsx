@@ -21,11 +21,26 @@ export function CampaignList({
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [acceptProgress, setAcceptProgress] = useState(0);
   const [locallyAcceptedCampaigns, setLocallyAcceptedCampaigns] = useState<
     Set<string>
   >(new Set(acceptedCampaignIds));
   const { campaignLoading } = useCampaigns();
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      setAcceptProgress(0);
+      return;
+    }
+
+    setAcceptProgress(8);
+    const interval = window.setInterval(() => {
+      setAcceptProgress((current) => Math.min(current + 2, 90));
+    }, 500);
+
+    return () => window.clearInterval(interval);
+  }, [isLoading]);
 
   // Update locally accepted campaigns when prop changes
   useEffect(() => {
@@ -177,6 +192,7 @@ export function CampaignList({
         onConfirm={handleConfirmAccept}
         campaign={selectedCampaign}
         isLoading={isLoading}
+        progress={acceptProgress}
       />
     </>
   );

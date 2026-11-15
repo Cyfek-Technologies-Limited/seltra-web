@@ -24,7 +24,7 @@ export async function sendEmail(email: string, subject: string, html: string) {
     console.log("📝 SUBJECT:", subject);
 
     const { data, error } = await getResend().emails.send({
-      from: "Seltra <admin@seltra.cyfek.com>",
+      from: "Seltra <admin@cyfek.com>",
       to: [email],
       subject: subject,
       html: html,
@@ -443,7 +443,7 @@ export async function sendBulkEmails(
 
     try {
       const { data, error } = await getResend().emails.send({
-        from: "campaigns@seltra.cyfek.com",
+        from: "Seltra <admin@cyfek.com>",
         to: batch,
         subject: subject,
         html: html,
@@ -461,7 +461,7 @@ export async function sendBulkEmails(
 
           // Simple retry once
           const retryResult = await getResend().emails.send({
-            from: "campaigns@seltra.cyfek.com",
+            from: "Seltra <admin@cyfek.com>",
             to: batch,
             subject: subject,
             html: html,
@@ -596,7 +596,7 @@ export async function sendPromotionalToAdvertisers(emails: string[]) {
 
     // Using Resend's batch sending
     const { data, error } = await getResend().emails.send({
-      from: "Seltra <support@seltra.cyfek.com>",
+      from: "Seltra <admin@cyfek.com>",
       to: emails,
       subject: "Boost Online Sales",
       html: `
@@ -764,7 +764,7 @@ export async function sendPromotionalToPublishers(emails: string[]) {
 
     // Using Resend's batch sending
     const { data, error } = await getResend().emails.send({
-      from: "Seltra <opportunities@seltra.cyfek.com>",
+      from: "Seltra <admin@cyfek.com>",
       to: emails,
       subject:
         "💰 Start Earning Money on Your Social Media - As a Seltra Publisher",

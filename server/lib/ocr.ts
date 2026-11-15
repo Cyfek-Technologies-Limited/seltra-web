@@ -111,7 +111,6 @@ export async function stampImageWithCode(
 }
 
 export async function stampVideoWithCode(
-  videoBuffer: Buffer,
   videoUrl: string,
   proofCode: string
 ): Promise<{ buffer: Buffer; contentType: string }> {

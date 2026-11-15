@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 interface AcceptCampaignDialogProps {
@@ -18,6 +19,7 @@ interface AcceptCampaignDialogProps {
   onConfirm: () => void;
   campaign: any;
   isLoading?: boolean;
+  progress?: number;
 }
 
 export function AcceptCampaignDialog({
@@ -26,7 +28,15 @@ export function AcceptCampaignDialog({
   onConfirm,
   campaign,
   isLoading,
+  progress = 0,
 }: AcceptCampaignDialogProps) {
+  const progressStep =
+    progress < 20
+      ? "Checking your account and campaign"
+      : progress < 85
+      ? "Preparing the campaign creative"
+      : "Saving your campaign acceptance";
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md animate-in zoom-in-95 duration-200 flex flex-col">
@@ -54,6 +64,23 @@ export function AcceptCampaignDialog({
               </span>
               <span>Platform: {campaign.platform}</span>
             </div>
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="space-y-2" aria-live="polite">
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>{progressStep}</span>
+              <span>Estimated {progress}%</span>
+            </div>
+            <Progress
+              value={progress}
+              aria-label="Estimated campaign acceptance progress"
+              className="h-2 bg-gray-200"
+            />
+            <p className="text-xs text-muted-foreground">
+              Video campaigns can take longer while the proof creative is prepared.
+            </p>
           </div>
         )}
 

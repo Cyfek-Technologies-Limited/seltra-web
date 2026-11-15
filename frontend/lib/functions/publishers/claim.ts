@@ -157,7 +157,8 @@ export const submitProof = async (
   proofUrls: string[], // Changed from proofUrl to proofUrls (array)
   views: number,
   setIsSubmitting: (value: boolean) => void,
-  notes?: string
+  notes?: string,
+  platformEvidence?: { provider: "tiktok" | "instagram"; mediaId: string }
 ): Promise<boolean> => {
   try {
     setIsSubmitting(true);
@@ -217,6 +218,7 @@ export const submitProof = async (
       proofUrls: proofUrls, // Array of post URLs
       views: views,
       notes: notes || "",
+      ...(platformEvidence ? { platformEvidence } : {}),
     };
 
     console.log("🟡 Submit claim payload:", claimPayload);

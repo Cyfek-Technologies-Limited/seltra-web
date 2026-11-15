@@ -80,6 +80,25 @@ model Publisher {
   location        String?
   occupation      String?
   profileComplete Boolean    @default(false)
+  socialConnections PublisherSocialConnection[]
+}
+
+model PublisherSocialConnection {
+  id                String   @id @default(uuid())
+  publisherId       String
+  provider          String
+  accountId         String
+  username          String?
+  accessToken       String
+  refreshToken      String?
+  expiresAt         DateTime?
+  scopes            String[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  publisher         Publisher @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+
+  @@unique([publisherId, provider])
+  @@unique([provider, accountId])
 }
 
 // In your schema.prisma - UPDATE CampaignReservation model
@@ -178,6 +197,7 @@ model PublisherEarning {
   ocrText           String?
   ocrConfidence     Float?
   codeMatched       Boolean   @default(false)
+  platformEvidence  Json?
   claimedAt         DateTime  @default(now())
   approvedAt        DateTime?
   paidAt            DateTime?

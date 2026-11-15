@@ -30,17 +30,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const publisher = await prisma.publisher.findUnique({
-      where: { userId: user.userId },
-    });
-
-    if (!publisher) {
-      return NextResponse.json(
-        { error: "Publisher profile not found" },
-        { status: 404 }
-      );
-    }
-
     // 3. Parse request
     const body = await request.json();
     const { campaignId } = body;
@@ -52,11 +41,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Fetch campaign
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      include: { adCreative: true },
-    });
+    // Load independent records together to reduce database round trips.
+    const [publisher, campaign] = await Promise.all([
+      prisma.publisher.findUnique({ where: { userId: user.userId } }),
+      prisma.campaign.findUnique({
+        where: { id: campaignId },
+        include: { adCreative: true },
+      }),
+    ]);
+
+    if (!publisher) {
+      return NextResponse.json(
+        { error: "Publisher profile not found" },
+        { status: 404 }
+      );
+    }
 
     if (!campaign) {
       return NextResponse.json(
@@ -117,15 +116,12 @@ export async function POST(request: NextRequest) {
     let stampedCreativeUrl: string | null = null;
 
     try {
-      const creativeResponse = await fetch(fileUrl);
-      if (!creativeResponse.ok) {
-        throw new Error(`Failed to fetch creative: ${creativeResponse.status}`);
-      }
-
-      const arrayBuffer = await creativeResponse.arrayBuffer();
-      const originalBuffer = Buffer.from(arrayBuffer);
-
       if (isImage) {
+        const creativeResponse = await fetch(fileUrl);
+        if (!creativeResponse.ok) {
+          throw new Error(`Failed to fetch creative: ${creativeResponse.status}`);
+        }
+        const originalBuffer = Buffer.from(await creativeResponse.arrayBuffer());
         console.log("Stamping image...");
         const stamped = await stampImageWithCode(originalBuffer, proofCode);
         const uploaded = await uploadBufferToR2(
@@ -137,11 +133,9 @@ export async function POST(request: NextRequest) {
         console.log("Image stamped successfully:", stampedCreativeUrl);
       } else if (isVideo) {
         console.log("Stamping video...");
-        const stamped = await stampVideoWithCode(
-          originalBuffer,
-          fileUrl,
-          proofCode
-        );
+        // The stamping service fetches the source URL itself. Avoid downloading
+        // the full video into this server first.
+        const stamped = await stampVideoWithCode(fileUrl, proofCode);
         const uploaded = await uploadBufferToR2(
           stamped.buffer,
           "video/mp4",

@@ -18,6 +18,7 @@ import {
   extractDataFromMultipleScreenshots,
   extractDataFromSocialScreenshot,
 } from "../../../../../../lib/ocr-claude";
+import { refreshSocialAccessToken } from "../../../../../../lib/social-verification";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!publisher) return handleResponse(403, "Publisher account not found");
 
     const body = await request.json();
-    const { campaignId, proofImages, proofUrls, views, notes } = body;
+    const { campaignId, proofImages, proofUrls, views, notes, platformEvidence } = body;
 
     if (
       !campaignId ||
@@ -108,6 +109,58 @@ export async function POST(request: NextRequest) {
         400,
         "Proof has already been submitted for this campaign"
       );
+    }
+
+    let verifiedPlatformEvidence: { provider: string; mediaId: string; views: number; checkedAt: string; url?: string } | null = null;
+    if (platformEvidence !== undefined && platformEvidence !== null) {
+      if (!platformEvidence || !["tiktok", "instagram"].includes(platformEvidence.provider) || typeof platformEvidence.mediaId !== "string") {
+        return handleResponse(400, "Invalid connected-platform evidence selection");
+      }
+      const normalizedPlatform = campaign.platform.toLowerCase();
+      if (normalizedPlatform !== "all" && !normalizedPlatform.includes(platformEvidence.provider)) {
+        return handleResponse(400, "Selected evidence platform does not match this campaign");
+      }
+      try {
+        const connected = await (prisma as any).publisherSocialConnection.findUnique({
+          where: { publisherId_provider: { publisherId: publisher.id, provider: platformEvidence.provider } },
+        });
+        if (!connected) return handleResponse(400, `Connect your ${platformEvidence.provider} account before using its metrics`);
+        const accessToken = await refreshSocialAccessToken(connected);
+        let metricViews: number | null = null;
+        let evidenceUrl: string | undefined;
+        if (platformEvidence.provider === "tiktok") {
+          const response = await fetch("https://open.tiktokapis.com/v2/video/query/?fields=id,share_url,view_count", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ filters: { video_ids: [platformEvidence.mediaId] } }),
+          });
+          const result = await response.json();
+          const video = result.data?.videos?.find((item: any) => item.id === platformEvidence.mediaId);
+          if (!response.ok || result.error?.code !== "ok" || !video) throw new Error("TikTok could not verify that video belongs to the connected account");
+          metricViews = Number(video.view_count);
+          evidenceUrl = video.share_url;
+        } else {
+          const storyUrl = new URL(`https://graph.facebook.com/v26.0/${connected.accountId}/stories`);
+          storyUrl.search = new URLSearchParams({ fields: "id", access_token: accessToken }).toString();
+          const storiesResponse = await fetch(storyUrl);
+          const stories = await storiesResponse.json();
+          if (!storiesResponse.ok || !(stories.data || []).some((item: any) => item.id === platformEvidence.mediaId)) {
+            throw new Error("Instagram Story is no longer available to verify. Submit while it is active.");
+          }
+          const insightUrl = new URL(`https://graph.facebook.com/v26.0/${platformEvidence.mediaId}/insights`);
+          insightUrl.search = new URLSearchParams({ metric: "views", access_token: accessToken }).toString();
+          const insightResponse = await fetch(insightUrl);
+          const insight = await insightResponse.json();
+          if (!insightResponse.ok) throw new Error(insight.error?.message || "Instagram Story insights are unavailable");
+          const metric = (insight.data || []).find((entry: any) => entry.name === "views");
+          const value = metric?.values?.[0]?.value ?? metric?.total_value?.value;
+          metricViews = Number.isFinite(Number(value)) ? Number(value) : null;
+        }
+        if (metricViews === null || !Number.isSafeInteger(metricViews) || metricViews < 0) throw new Error("The platform did not return a valid view count");
+        verifiedPlatformEvidence = { provider: platformEvidence.provider, mediaId: platformEvidence.mediaId, views: metricViews, checkedAt: new Date().toISOString(), ...(evidenceUrl ? { url: evidenceUrl } : {}) };
+      } catch (error) {
+        return handleResponse(502, error instanceof Error ? error.message : "Could not verify connected-platform metrics");
+      }
     }
 
     const remainingViewsExcludingThisClaim =
@@ -243,6 +296,10 @@ export async function POST(request: NextRequest) {
           "The view count you entered and the view count extracted from your screenshot do not match. " +
           "You can appeal by sending an email to admin@seltra.app for manual review.";
         autoActionMessage = "Claim rejected automatically: view count mismatch";
+      } else if (verifiedPlatformEvidence && verifiedPlatformEvidence.views !== viewsCount) {
+        finalStatus = "REJECTED";
+        rejectionReason = `The connected ${verifiedPlatformEvidence.provider} metric (${verifiedPlatformEvidence.views}) does not match the submitted view count (${viewsCount}).`;
+        autoActionMessage = "Claim rejected automatically: connected-platform view count mismatch";
       } else {
         // codeMatched = true AND extractedViews === viewsCount — both verified
         finalStatus = "APPROVED";
@@ -268,6 +325,7 @@ export async function POST(request: NextRequest) {
         ocrText,
         ocrConfidence,
         codeMatched,
+        platformEvidence: verifiedPlatformEvidence ?? undefined,
         status: finalStatus,
         rejectionReason: rejectionReason, // null if approved
       },

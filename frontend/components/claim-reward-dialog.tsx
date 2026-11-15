@@ -39,6 +39,7 @@ interface ClaimRewardDialogProps {
     proofUrls: string[]; // Changed from proofUrl to proofUrls (array)
     views: number;
     notes?: string;
+    platformEvidence?: { provider: "tiktok" | "instagram"; mediaId: string };
   }) => Promise<void>;
   campaign: any;
   isLoading?: boolean;
@@ -65,6 +66,11 @@ export function ClaimRewardDialog({
   const [newUrl, setNewUrl] = useState(""); // Temporary input for new URL
   const [views, setViews] = useState("");
   const [notes, setNotes] = useState("");
+  const [evidenceProvider, setEvidenceProvider] = useState<"" | "tiktok" | "instagram">("");
+  const [evidenceOptions, setEvidenceOptions] = useState<Array<{ id: string; label: string; views: number; url?: string }>>([]);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState("");
+  const [loadingEvidence, setLoadingEvidence] = useState(false);
+  const [evidenceError, setEvidenceError] = useState("");
   const { toast } = useToast();
 
   const maxViews = campaign?.targetViews - campaign?.views;
@@ -79,8 +85,37 @@ export function ClaimRewardDialog({
       setNewUrl("");
       setViews("");
       setNotes("");
+      setEvidenceProvider("");
+      setEvidenceOptions([]);
+      setSelectedEvidenceId("");
+      setEvidenceError("");
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !evidenceProvider) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoadingEvidence(true);
+      setEvidenceError("");
+      try {
+        const token = localStorage.getItem("auth-token");
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/publisher/social/proof-options?provider=${evidenceProvider}`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not load connected account metrics");
+        if (!cancelled) setEvidenceOptions(result.items || []);
+      } catch (error: any) {
+        if (!cancelled) { setEvidenceOptions([]); setEvidenceError(error.message); }
+      } finally {
+        if (!cancelled) setLoadingEvidence(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [evidenceProvider, isOpen]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -278,6 +313,11 @@ export function ClaimRewardDialog({
       return;
     }
 
+    if (evidenceProvider && !selectedEvidenceId) {
+      toast({ title: "Select platform proof", description: "Choose the TikTok video or Instagram Story you want Seltra to verify, or switch back to screenshot-only verification.", variant: "destructive" });
+      return;
+    }
+
     const viewsCount = parseInt(views);
 
     if (viewsCount > campaign.targetViews) {
@@ -319,6 +359,7 @@ export function ClaimRewardDialog({
         proofUrls: proofUrls, // Send array of URLs
         views: viewsCount,
         notes: notes.trim() || undefined,
+        ...(evidenceProvider && selectedEvidenceId ? { platformEvidence: { provider: evidenceProvider, mediaId: selectedEvidenceId } } : {}),
       });
 
       // Reset form on successful submission
@@ -327,6 +368,8 @@ export function ClaimRewardDialog({
       setNewUrl("");
       setViews("");
       setNotes("");
+      setEvidenceProvider("");
+      setSelectedEvidenceId("");
     } catch (error) {
       // Error handling is done in the parent component
     }
@@ -383,6 +426,22 @@ export function ClaimRewardDialog({
         )}
 
         <div className="space-y-4">
+          {isAllPlatforms ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Connected account verification is available on single-platform TikTok and Instagram campaigns. This campaign combines views from multiple networks, so its extra verification remains screenshot based.</div> : <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <Label htmlFor="platform-evidence">Extra verification from a connected platform (optional)</Label>
+            <select id="platform-evidence" className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={evidenceProvider} onChange={(event) => { setEvidenceProvider(event.target.value as "" | "tiktok" | "instagram"); setEvidenceOptions([]); setSelectedEvidenceId(""); }}>
+              <option value="">Use screenshot checks only</option>
+              {(!campaign?.platform || campaign.platform.toLowerCase() === "all" || campaign.platform.toLowerCase().includes("tiktok")) && <option value="tiktok">TikTok video metrics</option>}
+              {(!campaign?.platform || campaign.platform.toLowerCase() === "all" || campaign.platform.toLowerCase().includes("instagram")) && <option value="instagram">Instagram Story insights</option>}
+            </select>
+            {evidenceProvider && <>
+              <p className="text-xs text-muted-foreground">Choose the exact video or active Story that corresponds to this claim. The view count must match both your screenshot and the platform response.</p>
+              {loadingEvidence ? <p className="text-sm">Loading your platform posts…</p> : evidenceError ? <p className="text-sm text-red-700">{evidenceError} <a className="underline" href="/dashboard/publisher/profile">Connect account in your profile</a></p> : evidenceOptions.length > 0 ? <select className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={selectedEvidenceId} onChange={(event) => setSelectedEvidenceId(event.target.value)}>
+                <option value="">Select a post or Story</option>
+                {evidenceOptions.map((item) => <option key={item.id} value={item.id}>{item.label} — {Number(item.views).toLocaleString()} views</option>)}
+              </select> : <p className="text-sm text-muted-foreground">No eligible posts or active Stories were returned.</p>}
+            </>}
+          </div>
+          }
           {/* Multiple Post URLs */}
           {/* <div className="space-y-2">
             <Label htmlFor="proofUrls" className="text-sm font-medium">

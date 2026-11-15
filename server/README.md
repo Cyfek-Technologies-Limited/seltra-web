@@ -2,6 +2,21 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Publisher social proof verification
+
+Optional direct metrics are available during proof submission after a publisher connects an account in **Publisher Dashboard → Profile**. Configure these server environment variables:
+
+- `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET` for TikTok Login Kit and the Display API. The app needs approval for `video.list`.
+- `META_APP_ID` and `META_APP_SECRET` for Facebook Login. The Instagram account must be a professional account linked to a Facebook Page, and the app needs the relevant Page and Instagram insights permissions approved by Meta.
+- `SOCIAL_TOKEN_ENCRYPTION_KEY`: a private 32-byte key encoded as 64 hexadecimal characters. Generate one with `openssl rand -hex 32`. Do not commit it or reuse the Resend/API credentials.
+
+Set `NEXT_PUBLIC_APP_URL` to the server's public HTTPS origin and register these exact callback URLs in the provider consoles:
+
+- `${NEXT_PUBLIC_APP_URL}/api/v1/publisher/social/tiktok/callback`
+- `${NEXT_PUBLIC_APP_URL}/api/v1/publisher/social/instagram/callback`
+
+Apply `prisma/social-verification-migration.sql` to the PostgreSQL database and run `pnpm prisma generate` from `server` after applying the schema. Without provider credentials and app review, existing screenshot verification remains available and unchanged.
+
 First, run the development server:
 
 ```bash

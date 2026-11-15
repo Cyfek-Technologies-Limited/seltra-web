@@ -52,6 +52,48 @@ export default function PublisherProfilePage() {
   const [isloadProfileData, setIsLoadProfileData] = useState(true);
   const [openVerify, setOpenVerify] = useState(false);
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+  const [socialConnections, setSocialConnections] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (user?.isPublisher) void loadSocialConnections();
+  }, [user?.isPublisher]);
+
+  const socialHeaders = () => {
+    const token = localStorage.getItem("auth-token");
+    return { ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  };
+
+  const loadSocialConnections = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/publisher/social/connections`, { credentials: "include", headers: socialHeaders() });
+      if (!response.ok) return;
+      const result = await response.json();
+      setSocialConnections(Object.fromEntries((result.connections || []).map((connection: any) => [connection.provider, connection.username || "Connected"])));
+    } catch (error) {
+      console.error("Could not load connected social accounts", error);
+    }
+  };
+
+  const connectSocialAccount = async (provider: "tiktok" | "instagram") => {
+    try {
+      const response = await fetch(`${BASE_URL}/publisher/social/${provider}`, { credentials: "include", headers: socialHeaders() });
+      const result = await response.json();
+      if (!response.ok || !result.authorizationUrl) throw new Error(result.error || "Could not start account connection");
+      window.location.assign(result.authorizationUrl);
+    } catch (error: any) {
+      toast({ title: "Could not connect account", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const disconnectSocialAccount = async (provider: "tiktok" | "instagram") => {
+    try {
+      const response = await fetch(`${BASE_URL}/publisher/social/connections`, { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json", ...socialHeaders() }, body: JSON.stringify({ provider }) });
+      if (!response.ok) throw new Error("Could not disconnect account");
+      setSocialConnections((current) => { const next = { ...current }; delete next[provider]; return next; });
+    } catch (error: any) {
+      toast({ title: "Could not disconnect account", description: error.message, variant: "destructive" });
+    }
+  };
 
   // Form state - UPDATED with demographic fields
   const [formData, setFormData] = useState({
@@ -999,6 +1041,24 @@ export default function PublisherProfilePage() {
         </div>
       </div>
 
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Connected accounts for proof verification</CardTitle>
+          <CardDescription>Optionally connect a TikTok account or Instagram professional account. When submitting a claim, Seltra can retrieve the selected post or active Story metrics directly from the platform.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          {(["tiktok", "instagram"] as const).map((provider) => (
+            <div key={provider} className="rounded-lg border p-4">
+              <p className="font-medium capitalize">{provider}</p>
+              <p className="mb-3 text-sm text-muted-foreground">{socialConnections[provider] ? `Connected as ${socialConnections[provider]}` : provider === "instagram" ? "Requires an Instagram professional account linked to a Facebook Page." : "TikTok video metrics require TikTok app approval for video.list."}</p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => connectSocialAccount(provider)}>{socialConnections[provider] ? "Reconnect" : "Connect"}</Button>
+                {socialConnections[provider] && <Button type="button" variant="ghost" onClick={() => disconnectSocialAccount(provider)}>Disconnect</Button>}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
       <DeleteAccountSection />
     </div>
   );
